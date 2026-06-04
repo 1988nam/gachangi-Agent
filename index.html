@@ -902,7 +902,7 @@
 <script>
   // js/config.js가 로드되지 않았거나 설정이 없는 경우 localStorage에서 로드
   if (typeof GACHANGI_CONFIG === 'undefined') {
-    window.GACHANGI_CONFIG = null;
+    window.GACHANGI_CONFIG = {};
   }
   
   const defaultMeta = {
@@ -914,17 +914,22 @@
     MONTH_NAMES: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
   };
 
+  // 기본 메타데이터 채워넣기 (기존 GACHANGI_CONFIG에 필드가 없는 경우만)
+  for (const key in defaultMeta) {
+    if (GACHANGI_CONFIG[key] === undefined) {
+      GACHANGI_CONFIG[key] = defaultMeta[key];
+    }
+  }
+
   try {
     const stored = localStorage.getItem('gachangi_config');
     if (stored) {
       const parsed = JSON.parse(stored);
-      window.GACHANGI_CONFIG = { ...defaultMeta, ...parsed };
-    } else if (!window.GACHANGI_CONFIG) {
-      window.GACHANGI_CONFIG = { ...defaultMeta };
+      // GACHANGI_CONFIG 객체의 속성을 덮어씌움 (const 객체여도 속성 변경은 가능)
+      Object.assign(GACHANGI_CONFIG, parsed);
     }
   } catch (e) {
     console.error('config 로드 에러:', e);
-    window.GACHANGI_CONFIG = { ...defaultMeta };
   }
 </script>
 <script src="js/auth.js"></script>
