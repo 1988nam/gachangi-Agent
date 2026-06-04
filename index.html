@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>가챙이 대시보드</title>
+  <meta name="description" content="가챙이 자동 가계부 관리 대시보드 - 지출 분석, 예산 관리, 검토 큐" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js를 상단에 로드하여 컴파일 및 초기화 참조 에러 방지 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- 글로벌 런타임 에러 핸들러: 화면 멈춤 시 구체적 에러 노출 -->
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+      const errStr = `[Runtime Error] ${message} (${source.split('/').pop()}:${lineno}:${colno})`;
+      console.error(errStr, error);
+      alert('⚠️ 애플리케이션 에러가 발생했습니다:\n' + errStr);
+      // 로딩 중인 경우 강제 해제
+      const loader = document.getElementById('loading-overlay');
+      if (loader) loader.style.display = 'none';
+      return false;
+    };
+    window.onunhandledrejection = function(event) {
+      const errStr = `[Promise Rejection] ${event.reason}`;
+      console.error(errStr, event.reason);
+      alert('⚠️ 비동기 처리 중 에러가 발생했습니다:\n' + errStr);
+      const loader = document.getElementById('loading-overlay');
+      if (loader) loader.style.display = 'none';
+    };
+  </script>
+</head>
+<body>
+
+<!-- ════════════════════════════════════
+  로그인 화면
+════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+  <div class="login-card glass">
+    <div class="login-logo">
+      <div class="logo-icon">💰</div>
+      <h1 class="login-title">가챙이</h1>
+      <p class="login-subtitle">스마트 가계부 대시보드</p>
+    </div>
+    <div class="login-features">
+      <div class="feature-item">📊 카테고리별 지출 차트</div>
+      <div class="feature-item">🔍 검토 필요 항목 빠른 수정</div>
+      <div class="feature-item">📈 월별 수입/지출 트렌드</div>
+      <div class="feature-item">⚙️ 예산 설정 및 초과 알림</div>
+    </div>
+    <button id="login-btn" class="btn-login">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Google로 로그인
+    </button>
+    <p class="login-note">Google Sheets 읽기/쓰기 권한이 필요합니다</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+  앱 레이아웃 (로그인 후)
+════════════════════════════════════ -->
+<div id="app-layout" style="display:none">
+
+  <!-- 사이드바 -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">💰</div>
+      <div class="sidebar-title-wrap">
+        <span class="sidebar-app-name">가챙이</span>
+        <span class="sidebar-tagline">가계부 대시보드</span>
+      </div>
+      <button id="sidebar-close-btn" class="sidebar-close-btn" style="display: none;">&times;</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-tab="dashboard" id="nav-dashboard">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">종합 대시보드</span>
+      </div>
+      <div class="nav-item" data-tab="monthly-dashboard" id="nav-monthly-dashboard">
+        <span class="nav-icon">📅</span>
+        <span class="nav-label">월별 현황</span>
+      </div>
+      <div class="nav-item" data-tab="transactions" id="nav-transactions">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">상세 내역</span>
+      </div>
+      <div class="nav-item" data-tab="cat-expenses" id="nav-cat-expenses">
+        <span class="nav-icon">🍰</span>
+        <span class="nav-label">누적 지출 분석</span>
+      </div>
+      <div class="nav-item" data-tab="review" id="nav-review">
+        <span class="nav-icon">🔍</span>
+        <span class="nav-label">검토 큐</span>
+        <span id="review-badge" class="badge" style="display:none">0</span>
+      </div>
+      <div class="nav-item" data-tab="fixed-expenses" id="nav-fixed-expenses">
+        <span class="nav-icon">📌</span>
+        <span class="nav-label">고정비 관리</span>
+      </div>
+      <div class="nav-item" data-tab="budget" id="nav-budget">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">예산 설정</span>
+      </div>
+      <div class="nav-item" data-tab="cards-accounts" id="nav-cards-accounts">
+        <span class="nav-icon">💳</span>
+        <span class="nav-label">카드 계좌 리스트</span>
+      </div>
+      <div class="nav-item" data-tab="agent" id="nav-agent">
+        <span class="nav-icon">🤖</span>
+        <span class="nav-label">에이전트 관리</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar">👤</div>
+        <span id="user-name" class="user-name-text">사용자</span>
+      </div>
+      <button id="logout-btn" class="btn-icon" title="로그아웃">⏏</button>
+    </div>
+  </aside>
+
+  <!-- 메인 콘텐츠 -->
+  <main class="main-content">
+
+    <!-- 상단 바 -->
+    <header class="topbar">
+      <div class="topbar-left" style="display: flex; align-items: center; gap: 12px;">
+        <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" style="display: none;">☰</button>
+        <h2 class="topbar-title" id="page-title">대시보드</h2>
+      </div>
+      <div class="topbar-right">
+        <select id="month-selector" class="month-selector"></select>
+        <button id="refresh-btn" class="btn-icon" title="새로고침">🔄</button>
+      </div>
+    </header>
+
+    <!-- ── 대시보드 탭 ────────────────────── -->
+    <section id="tab-dashboard" class="tab-panel active">
+      <!-- KPI 카드 -->
+      <div class="kpi-grid">
+        <div class="kpi-card glass">
+          <div class="kpi-icon income-icon">💰</div>
+          <div class="kpi-body">
+            <div class="kpi-label">누적 수입 (YTD)</div>
+            <div class="kpi-value income" id="kpi-income">0원</div>
+          </div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-icon expense-icon">💳</div>
+          <div class="kpi-body">
+            <div class="kpi-label">누적 지출 (YTD)</div>
+            <div class="kpi-value expense" id="kpi-expense">0원</div>
+          </div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-icon balance-icon">📈</div>
+          <div class="kpi-body">
+            <div class="kpi-label">누적 순 저축 (YTD)</div>
+            <div class="kpi-value" id="kpi-balance">0원</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 차트 및 카테고리 순위 영역 -->
+      <div class="charts-grid">
+        <div class="chart-card glass">
+          <div class="card-header">
+            <h3 class="card-title">카테고리별 지출 비율</h3>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="pie-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass">
+          <div class="card-header">
+            <h3 class="card-title">카테고리별 순위 <span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:6px;">(클릭 시 아래 상세 내역 필터링)</span></h3>
+          </div>
+          <div id="dashboard-cat-list" class="budget-bars-list">
+            <!-- JS로 렌더링 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- YTD 상세 내역 영역 -->
+      <div class="glass card full-width-card" style="margin-top: 24px;">
+        <div class="card-header">
+          <h3 class="card-title" id="dashboard-cat-details-title">🔍 카테고리별 상세 거래 내역</h3>
+        </div>
+        <div class="table-wrap" style="max-height: 260px; overflow-y: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>날짜</th>
+                <th>내용</th>
+                <th>금액</th>
+                <th>카테고리</th>
+                <th>결제수단</th>
+              </tr>
+            </thead>
+            <tbody id="dashboard-cat-details-table-body">
+              <!-- JS로 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 월별 트렌드 -->
+      <div class="glass card full-width-card" style="margin-top: 24px;">
+        <div class="card-header">
+          <h3 class="card-title">월별 수입 / 지출 트렌드 <span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:6px;">(막대그래프 클릭 시 아래 상세 내역 노출)</span></h3>
+        </div>
+        <div class="chart-wrap trend-chart-wrap">
+          <canvas id="trend-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- 트렌드 상세 내역 영역 -->
+      <div class="glass card full-width-card" id="dashboard-trend-details-card" style="margin-top: 24px; display: none;">
+        <div class="card-header">
+          <h3 class="card-title" id="dashboard-trend-details-title">🔍 월별 상세 거래 내역</h3>
+        </div>
+        <div class="table-wrap" style="max-height: 300px; overflow-y: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>날짜</th>
+                <th>내용</th>
+                <th>수입</th>
+                <th>지출</th>
+                <th>카테고리</th>
+                <th>결제수단</th>
+              </tr>
+            </thead>
+            <tbody id="dashboard-trend-details-table-body">
+              <!-- JS로 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 월별 현황 탭 (선택한 월 기준) ────────────────────── -->
+    <section id="tab-monthly-dashboard" class="tab-panel">
+      <!-- 상단 정보 -->
+      <div class="glass card page-header-card">
+        <h3 class="card-title" id="monthly-dashboard-title">📅 월별 현황 및 지출 분석</h3>
+        <p class="card-desc">선택된 월의 지출 및 예산 관리 현황을 확인합니다.</p>
+      </div>
+      
+      <!-- KPI 카드 -->
+      <div class="kpi-grid">
+        <div class="kpi-card glass">
+          <div class="kpi-icon income-icon">💰</div>
+          <div class="kpi-body">
+            <div class="kpi-label">이번 달 수입</div>
+            <div class="kpi-value income" id="monthly-kpi-income">0원</div>
+          </div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-icon expense-icon">💳</div>
+          <div class="kpi-body">
+            <div class="kpi-label">이번 달 지출</div>
+            <div class="kpi-value expense" id="monthly-kpi-expense">0원</div>
+          </div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-icon balance-icon">📈</div>
+          <div class="kpi-body">
+            <div class="kpi-label">순 저축</div>
+            <div class="kpi-value" id="monthly-kpi-balance">0원</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 차트 & 카테고리 순위 -->
+      <div class="charts-grid">
+        <div class="chart-card glass">
+          <div class="card-header">
+            <h3 class="card-title">지출 비율 차트</h3>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="monthly-pie-chart"></canvas>
+          </div>
+        </div>
+        
+        <div class="chart-card glass">
+          <div class="card-header">
+            <h3 class="card-title">카테고리별 순위 <span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:6px;">(클릭 시 아래 상세 내역 필터링)</span></h3>
+          </div>
+          <div id="monthly-cat-list" class="budget-bars-list">
+            <!-- JS로 렌더링 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 예산 현황 & 상세 내역 -->
+      <div class="charts-grid">
+        <div class="chart-card glass">
+          <div class="card-header">
+            <h3 class="card-title">예산 현황</h3>
+            <button class="btn-text" onclick="switchTab('budget')">설정 →</button>
+          </div>
+          <div id="monthly-budget-bars" class="budget-bars-list"></div>
+        </div>
+
+        <div class="chart-card glass">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <h3 class="card-title" id="monthly-cat-details-title">🔍 카테고리별 상세 거래 내역</h3>
+            <!-- 일괄 작업 컨트롤 바 -->
+            <div id="monthly-batch-action-bar" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span id="monthly-batch-count" style="font-size: 13px; color: var(--text-muted);">0건 선택됨</span>
+              <button id="monthly-batch-delete-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); padding: 4px 8px; font-size: 12px; margin: 0;">🗑️ 선택 삭제</button>
+              <select id="monthly-batch-cat-select" class="filter-select" style="margin: 0; padding: 4px 8px; font-size: 12px;">
+                <option value="">분류 일괄 변경</option>
+              </select>
+              <select id="monthly-batch-method-select" class="filter-select" style="margin: 0; padding: 4px 8px; font-size: 12px;">
+                <option value="">수단 일괄 변경</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrap" style="max-height: 260px; overflow-y: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th><input type="checkbox" id="monthly-check-all"></th>
+                  <th>날짜</th>
+                  <th>내용</th>
+                  <th>금액</th>
+                  <th>카테고리</th>
+                  <th>결제수단</th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody id="monthly-cat-details-table-body">
+                <!-- JS로 렌더링 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 카테고리별 지출 탭 (sysdate 기준 고정) ────────────────────── -->
+    <section id="tab-cat-expenses" class="tab-panel">
+      <!-- 상단 정보 -->
+      <div class="glass card page-header-card">
+        <h3 class="card-title" id="cat-expenses-title">📅 카테고리별 지출 분석</h3>
+        <p class="card-desc">이번 달의 카테고리별 지출 세부 현황을 분석합니다.</p>
+      </div>
+      
+      <!-- KPI 카드 -->
+      <div class="kpi-grid">
+        <div class="kpi-card glass">
+          <div class="kpi-icon expense-icon">💳</div>
+          <div class="kpi-body">
+            <div class="kpi-label">이번 달 총 지출</div>
+            <div class="kpi-value expense" id="cat-kpi-total-exp">0원</div>
+          </div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-icon income-icon">🏆</div>
+          <div class="kpi-body">
+            <div class="kpi-label">최대 소비 분야</div>
+            <div class="kpi-value" id="cat-kpi-top-cat">-</div>
+          </div>
+        </div>
+        <div class="kpi-card glass">
+          <div class="kpi-icon balance-icon">📅</div>
+          <div class="kpi-body">
+            <div class="kpi-label">하루 평균 지출</div>
+            <div class="kpi-value" id="cat-kpi-daily-avg">0원</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 차트 & 카테고리 목록 리스트 -->
+      <div class="charts-grid">
+        <div class="chart-card glass">
+          <div class="card-header">
+            <h3 class="card-title">지출 비율 차트</h3>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="cat-expenses-chart"></canvas>
+          </div>
+        </div>
+        
+        <div class="chart-card glass">
+          <div class="card-header">
+            <h3 class="card-title">카테고리별 순위 <span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:6px;">(클릭 시 아래 상세 내역 필터링)</span></h3>
+          </div>
+          <div id="cat-expenses-list" class="budget-bars-list">
+            <!-- JS로 렌더링 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 상세 내역 목록 -->
+      <div class="glass card full-width-card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <h3 class="card-title" id="cat-details-title">🔍 카테고리별 상세 거래 내역</h3>
+          <!-- 일괄 작업 컨트롤 바 -->
+          <div id="cat-batch-action-bar" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span id="cat-batch-count" style="font-size: 13px; color: var(--text-muted);">0건 선택됨</span>
+            <button id="cat-batch-delete-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); padding: 4px 8px; font-size: 12px; margin: 0;">🗑️ 선택 삭제</button>
+            <select id="cat-batch-cat-select" class="filter-select" style="margin: 0; padding: 4px 8px; font-size: 12px;">
+              <option value="">분류 일괄 변경</option>
+            </select>
+            <select id="cat-batch-method-select" class="filter-select" style="margin: 0; padding: 4px 8px; font-size: 12px;">
+              <option value="">수단 일괄 변경</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="cat-check-all"></th>
+                <th>날짜</th>
+                <th>내용</th>
+                <th>금액</th>
+                <th>카테고리</th>
+                <th>결제수단</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="cat-details-table-body">
+              <!-- JS로 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 검토 큐 탭 ────────────────────── -->
+    <section id="tab-review" class="tab-panel">
+      <div class="glass card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h3 class="card-title">🔍 검토 필요 항목 <span id="review-count" class="count-badge">0건</span></h3>
+            <p class="card-desc">노란색 배경 항목입니다. 분류를 확인하고 완료 처리하세요.</p>
+          </div>
+          <!-- 일괄 작업 컨트롤 바 -->
+          <div id="review-batch-action-bar" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span id="review-batch-count" style="font-size: 13px; color: var(--text-muted);">0건 선택됨</span>
+            <button id="review-batch-done-btn" class="btn-primary" style="background: var(--color-success); border-color: var(--color-success); padding: 6px 12px; font-size: 12px; margin: 0;">✓ 선택 완료</button>
+            <button id="review-batch-delete-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); padding: 6px 12px; font-size: 12px; margin: 0;">🗑️ 선택 삭제</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 40px;"><input type="checkbox" id="review-check-all"></th>
+                <th>날짜</th>
+                <th>내용</th>
+                <th>수입</th>
+                <th>지출</th>
+                <th>카테고리</th>
+                <th>결제수단</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="review-table-body"></tbody>
+          </table>
+        </div>
+        <div id="review-empty" class="empty-state" style="display:none">
+          <span class="empty-icon">✅</span>
+          <p>검토할 항목이 없습니다. 모두 완료되었어요!</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 상세 내역 탭 ────────────────────── -->
+    <section id="tab-transactions" class="tab-panel">
+      <div class="glass card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <h3 class="card-title">📋 상세 내역</h3>
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <div class="filter-bar">
+              <input type="text" id="tx-search" class="search-input" placeholder="🔍 내용 검색..." />
+              <select id="filter-cat" class="filter-select"></select>
+              <select id="filter-method" class="filter-select"></select>
+            </div>
+            <button id="btn-add-tx" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; height: 36px; display: inline-flex; align-items: center;">➕ 항목 추가</button>
+          </div>
+        </div>
+        <div class="tx-summary-bar">
+          <span>총 <strong id="tx-count">0건</strong></span>
+          <span>수입 <strong id="tx-total-inc" class="income">0원</strong></span>
+          <span>지출 <strong id="tx-total-exp" class="expense">0원</strong></span>
+          <span>저축/투자 <strong id="tx-total-save" class="save" style="color: var(--color-primary);">0원</strong></span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>날짜</th><th>내용</th><th>수입</th><th>지출</th>
+                <th>카테고리</th><th>결제수단</th><th>행</th><th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="tx-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 고정비 관리 탭 ────────────────────── -->
+    <section id="tab-fixed-expenses" class="tab-panel">
+      <div class="glass card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h3 class="card-title">📌 고정비 관리</h3>
+            <p class="card-desc">날짜가 '-'로 입력된 매월 고정적인 수입/지출 항목들을 관리합니다.</p>
+          </div>
+          <button id="btn-add-fixed" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; height: 36px; display: inline-flex; align-items: center;">➕ 고정비 추가</button>
+        </div>
+        <div class="tx-summary-bar">
+          <span>총 <strong id="fixed-count">0건</strong></span>
+          <span>고정 수입 <strong id="fixed-total-inc" class="income">0원</strong></span>
+          <span>고정 지출 <strong id="fixed-total-exp" class="expense">0원</strong></span>
+          <span>고정 저축/투자 <strong id="fixed-total-save" class="save" style="color: var(--color-primary);">0원</strong></span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>내용</th><th>수입</th><th>지출</th>
+                <th>카테고리</th><th>결제수단</th><th>행</th><th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="fixed-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 예산 설정 탭 ────────────────────── -->
+    <section id="tab-budget" class="tab-panel">
+      <div class="glass card">
+        <div class="card-header">
+          <h3 class="card-title">⚙️ 카테고리별 월 예산</h3>
+          <p class="card-desc">예산을 설정하면 대시보드에 진행률이 표시됩니다.</p>
+        </div>
+        <div id="budget-list" class="budget-list"></div>
+        <div class="budget-total-row">
+          <span>합계</span>
+          <div>
+            <span id="budget-total-amount" class="budget-total-val">0</span>
+            <span class="budget-total-unit">원</span>
+          </div>
+        </div>
+        <div class="budget-actions">
+          <button id="budget-save-btn" class="btn-primary">💾 예산 저장</button>
+        </div>
+      </div>
+      <div class="glass card" style="margin-top: 24px;">
+        <div class="card-header">
+          <h3 class="card-title">🧹 기존 데이터 카테고리 일괄 변환</h3>
+          <p class="card-desc">구글 시트의 기존 내역(식비, 잡비, 고정비 등)을 새로운 11대 카테고리(생활비, 기타 등)로 스프레드시트 상에서 직접 일괄 변환하여 정비합니다.</p>
+        </div>
+        <div class="budget-actions" style="margin-top: 16px;">
+          <button id="migrate-categories-btn" class="btn-primary" style="background: var(--color-warning); border-color: var(--color-warning);">🔄 기존 카테고리 일괄 변환</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 에이전트 관리 탭 ────────────────────── -->
+    <section id="tab-agent" class="tab-panel">
+      <div class="glass card page-header-card">
+        <h3 class="card-title">🤖 가챙이 자동화 에이전트</h3>
+        <p class="card-desc">구글 드라이브 폴더의 영수증/이체 내역 파일을 감시하여 Gemini AI로 자동 파싱하고 기록하는 에이전트를 모니터링합니다.</p>
+      </div>
+
+      <!-- 에이전트 상태 및 컨트롤 -->
+      <div class="kpi-grid">
+        <div class="kpi-card glass">
+          <div class="kpi-icon">⚙️</div>
+          <div class="kpi-body">
+            <div class="kpi-label">에이전트 작동 모드</div>
+            <div class="kpi-value" style="font-size: 18px; color: var(--color-success);">브라우저 단독형</div>
+          </div>
+        </div>
+
+        <div class="kpi-card glass">
+          <div class="kpi-icon">⚡</div>
+          <div class="kpi-body" style="width: 100%;">
+            <div class="kpi-label">수집 및 분석 실행 / 복원</div>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px; width: 100%;">
+              <button id="agent-trigger-btn" class="btn-primary" style="font-size: 12px; padding: 6px 12px; width: 100%;">⚡ 즉시 동기화 실행</button>
+              <button id="agent-rollback-btn" class="btn-primary" style="background: var(--color-warning); border-color: var(--color-warning); font-size: 11px; padding: 4px 8px; color: #000; width: 100%;">↩️ 세션 내역 롤백</button>
+              <button id="agent-clear-yellow-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); font-size: 11px; padding: 4px 8px; width: 100%;">🚨 미검토 노란행 삭제</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="kpi-card glass">
+          <div class="kpi-icon">🔌</div>
+          <div class="kpi-body">
+            <div class="kpi-label">구글 API 연동</div>
+            <div class="kpi-value" id="agent-conn-status" style="font-size: 16px; color: var(--text-muted);">대기 중</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 터미널 콘솔 로그 -->
+      <div class="glass card full-width-card" style="margin-top: 24px;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 class="card-title">💻 실시간 에이전트 작업 로그</h3>
+          <div style="display: flex; gap: 8px;">
+            <button id="download-agent-log-btn" class="btn-text" style="font-size: 12px; color: var(--color-success);">💾 로그 다운로드</button>
+            <button id="clear-agent-log-btn" class="btn-text" style="font-size: 12px; color: var(--color-danger);">🧹 로그 지우기</button>
+          </div>
+        </div>
+        <div id="agent-console" style="background: #020617; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px; font-family: monospace, Courier, sans-serif; font-size: 12px; color: #10b981; max-height: 400px; min-height: 250px; overflow-y: auto; line-height: 1.6; white-space: pre-wrap;">
+[대시보드] 에이전트 콘솔 대기 중...
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 카드 계좌 리스트 탭 ────────────────────── -->
+    <section id="tab-cards-accounts" class="tab-panel">
+      <div class="glass card page-header-card">
+        <h3 class="card-title">💳 보유 카드 & 계좌 리스트 관리</h3>
+        <p class="card-desc">스프레드시트에 연동된 본인의 카드 정보 및 보유 계좌(자산 제외) 데이터를 추가, 수정, 삭제합니다.</p>
+      </div>
+
+      <div class="cards-accounts-grid" style="display: flex; flex-direction: column; gap: 24px; margin-top: 24px;">
+        <!-- 보유 통장/계좌 영역 -->
+        <div class="glass card">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="card-title">🏦 보유 계좌</h3>
+            <button id="btn-add-account" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; display: inline-flex; align-items: center; gap: 4px;">➕ 계좌 추가</button>
+          </div>
+          <div class="table-wrap" style="margin-top: 16px; max-height: 500px; overflow-y: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>구분</th>
+                  <th>계좌명</th>
+                  <th>계좌번호</th>
+                  <th>명의자</th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody id="account-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 보유 카드 영역 -->
+        <div class="glass card">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="card-title">💳 보유 카드</h3>
+            <button id="btn-add-card" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; display: inline-flex; align-items: center; gap: 4px;">➕ 카드 추가</button>
+          </div>
+          <div class="table-wrap" style="margin-top: 16px; max-height: 500px; overflow-y: auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>카드명</th>
+                  <th>명의자</th>
+                  <th>용도</th>
+                  <th>연결은행</th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody id="card-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- 항목 추가 / 고정비 추가 모달 -->
+<div id="add-tx-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content glass">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-title">➕ 새 거래 항목 추가</h3>
+      <button id="modal-close-btn" class="btn-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="add-form" class="add-form">
+        <div class="type-toggle">
+          <button type="button" class="type-toggle-btn active" data-type="exp">💳 지출</button>
+          <button type="button" class="type-toggle-btn" data-type="inc">💰 수입</button>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" id="form-group-date">
+            <label class="form-label">날짜 <span class="required">*</span></label>
+            <input type="text" id="add-date" class="form-input" placeholder="MM/DD" maxlength="5" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">금액 <span class="required">*</span></label>
+            <input type="text" id="add-amount" class="form-input" placeholder="0" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">내용 <span class="required">*</span></label>
+          <input type="text" id="add-desc" class="form-input" placeholder="예: 스타벅스, 마트, 약국..." required />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">카테고리</label>
+            <select id="add-cat" class="form-select"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">결제수단</label>
+            <select id="add-method" class="form-select"></select>
+          </div>
+        </div>
+
+        <button type="submit" id="add-submit-btn" class="btn-primary" style="width: 100%; margin-top: 8px;">추가하기</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 카드 추가 / 수정 모달 -->
+<div id="card-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content glass">
+    <div class="modal-header">
+      <h3 class="modal-title" id="card-modal-title">➕ 새 카드 추가</h3>
+      <button id="card-modal-close-btn" class="btn-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="card-form" class="add-form">
+        <input type="hidden" id="card-row-index" />
+        <div class="form-group">
+          <label class="form-label">카드명 <span class="required">*</span></label>
+          <input type="text" id="card-name" class="form-input" placeholder="예: 하나SK 카드, 현대카드 M3" required />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">카드 명의자</label>
+            <input type="text" id="card-owner" class="form-input" placeholder="예: 정현, 혜영" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">용도</label>
+            <input type="text" id="card-purpose" class="form-input" placeholder="예: 주 생활비, 코스트코" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">최소 사용료 (실적 조건)</label>
+          <input type="text" id="card-min-fee" class="form-input" placeholder="예: ₩300,000" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">연결 계좌</label>
+          <select id="card-linked-account-select" class="form-select"></select>
+        </div>
+        <button type="submit" id="card-submit-btn" class="btn-primary" style="width: 100%; margin-top: 8px;">추가하기</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 계좌 추가 / 수정 모달 -->
+<div id="account-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content glass">
+    <div class="modal-header">
+      <h3 class="modal-title" id="account-modal-title">➕ 새 보유 계좌 추가</h3>
+      <button id="account-modal-close-btn" class="btn-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="account-form" class="add-form">
+        <input type="hidden" id="account-row-index" />
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">구분 <span class="required">*</span></label>
+            <select id="account-type" class="form-select" required>
+              <option value="공동">공동</option>
+              <option value="개인">개인</option>
+              <option value="단기투자">단기투자</option>
+              <option value="장기투자">장기투자</option>
+              <option value="초장기투자">초장기투자</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">명의</label>
+            <input type="text" id="account-owner" class="form-input" placeholder="예: 정현, 혜영" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">계좌명 (은행명 포함) <span class="required">*</span></label>
+          <input type="text" id="account-name" class="form-input" placeholder="예: 정현 우리은행, 카카오 부부통장" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">용도</label>
+          <input type="text" id="account-purpose" class="form-input" placeholder="예: 메인 통장, 주담대 이자" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">계좌번호</label>
+            <input type="text" id="account-number" class="form-input" placeholder="예: 3333-33-8383844" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">명의자</label>
+            <input type="text" id="account-owner-name" class="form-input" placeholder="예: 정현, 혜영" />
+          </div>
+        </div>
+        <button type="submit" id="account-submit-btn" class="btn-primary" style="width: 100%; margin-top: 8px;">추가하기</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 로딩 오버레이 -->
+<div id="loading-overlay" style="display:none">
+  <div class="spinner"></div>
+  <span>데이터 불러오는 중...</span>
+</div>
+
+<!-- 토스트 알림 -->
+<div id="toast" class="toast"></div>
+
+<!-- ════════════════════════════════════
+  스크립트 로드 순서 중요
+════════════════════════════════════ -->
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/sheets.js"></script>
+<script src="js/budget.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/monthly_dashboard.js"></script>
+<script src="js/cat_expenses.js"></script>
+<script src="js/review.js"></script>
+<script src="js/transactions.js"></script>
+<script src="js/fixed_expenses.js"></script>
+<script src="js/add.js"></script>
+<script src="js/agent_controller.js"></script>
+<script src="js/cards_accounts.js"></script>
+<script src="js/main.js"></script>
+
+<!-- Google APIs -->
+<script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+
+</body>
+</html>

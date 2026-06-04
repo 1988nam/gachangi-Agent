@@ -1,0 +1,21 @@
+{
+  "name": "gachangi-agent",
+  "version": "1.0.0",
+  "description": "가챙이 스마트 가계부 자동화 에이전트 백엔드",
+  "main": "agent_server.js",
+  "scripts": {
+    "start": "node agent_server.js",
+    "dev": "nodemon agent_server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^0.2.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "googleapis": "^137.0.0",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "type": "module"
+}

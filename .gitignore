@@ -1,0 +1,12 @@
+node_modules/
+.env
+token.json
+data/transactions.json
+data/transactions_backup.json
+data/transactions_backup_payment_methods.json
+logs/
+*.log
+
+# 로컬 설정 및 개인정보 파일
+js/config.js
+transactions.json
