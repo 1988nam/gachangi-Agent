@@ -13,9 +13,14 @@ const Auth = (() => {
 
   /** GAPI 클라이언트 초기화 */
   async function initGapi() {
+    const cfg = window.GACHANGI_CONFIG || {};
+    if (!cfg.API_KEY || cfg.API_KEY.indexOf('YOUR_') === 0) {
+      console.warn('[Auth] GACHANGI_CONFIG.API_KEY가 설정되지 않았습니다. API 초기화를 유예합니다.');
+      return;
+    }
     await new Promise((resolve) => gapi.load('client', resolve));
     await gapi.client.init({
-      apiKey: GACHANGI_CONFIG.API_KEY,
+      apiKey: cfg.API_KEY,
       discoveryDocs: [
         'https://sheets.googleapis.com/$discovery/rest?version=v4',
         'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'
@@ -28,9 +33,14 @@ const Auth = (() => {
 
   /** Google Identity Services 초기화 (브라우저 팝업 인증 설정) */
   function initGis() {
+    const cfg = window.GACHANGI_CONFIG || {};
+    if (!cfg.CLIENT_ID || cfg.CLIENT_ID.indexOf('YOUR_') === 0) {
+      console.warn('[Auth] GACHANGI_CONFIG.CLIENT_ID가 설정되지 않았습니다. GIS 초기화를 유예합니다.');
+      return;
+    }
     tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GACHANGI_CONFIG.CLIENT_ID,
-      scope: GACHANGI_CONFIG.SCOPES,
+      client_id: cfg.CLIENT_ID,
+      scope: cfg.SCOPES,
       callback: (tokenResponse) => {
         if (tokenResponse.error !== undefined) {
           console.error('[Auth] GIS 로그인 에러:', tokenResponse);

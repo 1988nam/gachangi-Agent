@@ -113,6 +113,13 @@ function initTabs() {
 }
 
 function switchTab(tabId) {
+  if (tabId === 'config') {
+    if (typeof ConfigModal !== 'undefined') {
+      ConfigModal.openModal();
+    }
+    return;
+  }
+
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(el => el.classList.remove('active'));
 
@@ -236,6 +243,12 @@ async function loadAllMonths() {
 
 // ─── 인증 후 앱 초기화 ─────────────────────────────────
 async function initApp(userInfo) {
+  if (typeof ConfigModal !== 'undefined' && !ConfigModal.hasValidConfig()) {
+    alert('API 연동 설정 정보가 누락되어 초기화할 수 없습니다. 설정을 먼저 완료해 주세요.');
+    ConfigModal.openModal();
+    return;
+  }
+
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-layout').style.display   = 'flex';
   document.getElementById('user-name').textContent = userInfo?.name || '사용자';
