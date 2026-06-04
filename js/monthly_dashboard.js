@@ -15,7 +15,8 @@ async function renderMonthlyDashboardTab() {
 
     const totalInc = transactions.reduce((s, t) => s + t.inc, 0);
     const totalExp = transactions.reduce((s, t) => s + (t.cat === '투자/저축' ? 0 : t.exp), 0);
-    const balance  = transactions.reduce((s, t) => s + (t.cat === '투자/저축' ? t.exp : 0), 0);
+    const totalSave = transactions.reduce((s, t) => s + (t.cat === '투자/저축' ? t.exp : 0), 0);
+    const balance  = (totalInc - totalExp) + totalSave;
 
     // KPI 카드 업데이트
     document.getElementById('monthly-kpi-income').textContent  = formatWon(totalInc);
