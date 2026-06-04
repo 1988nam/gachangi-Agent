@@ -898,7 +898,7 @@
 <!-- ════════════════════════════════════
   스크립트 로드 순서 중요
 ════════════════════════════════════ -->
-<script src="js/config.js"></script>
+
 <script>
   // js/config.js가 로드되지 않았거나 설정이 없는 경우 localStorage에서 로드
   if (typeof GACHANGI_CONFIG === 'undefined') {
@@ -925,8 +925,14 @@
     const stored = localStorage.getItem('gachangi_config');
     if (stored) {
       const parsed = JSON.parse(stored);
-      // GACHANGI_CONFIG 객체의 속성을 덮어씌움 (const 객체여도 속성 변경은 가능)
-      Object.assign(GACHANGI_CONFIG, parsed);
+      // 'YOUR_'로 시작하는 플레이스홀더 값은 실제 로컬 설정을 덮어쓰지 않도록 제외
+      const filtered = {};
+      for (const key in parsed) {
+        if (parsed[key] && String(parsed[key]).indexOf('YOUR_') !== 0) {
+          filtered[key] = parsed[key];
+        }
+      }
+      Object.assign(GACHANGI_CONFIG, filtered);
     }
   } catch (e) {
     console.error('config 로드 에러:', e);

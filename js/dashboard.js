@@ -51,8 +51,7 @@ async function renderDashboardTab() {
 
     const totalInc = allTransactions.reduce((s, t) => s + t.inc, 0);
     const totalExp = allTransactions.reduce((s, t) => s + (t.cat === '투자/저축' ? 0 : t.exp), 0);
-    const totalSave = allTransactions.reduce((s, t) => s + (t.cat === '투자/저축' ? t.exp : 0), 0);
-    const balance  = (totalInc - totalExp) + totalSave;
+    const balance  = totalInc - totalExp;
 
     // KPI 카드 업데이트 (YTD 누적 값)
     document.getElementById('kpi-income').textContent  = formatWon(totalInc);

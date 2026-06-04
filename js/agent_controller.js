@@ -117,6 +117,7 @@ async function runAgentSync() {
         let fileBase64 = '';
         let textContent = '';
         let decodedText = '';
+        let beforeLength = 0;
         let cleanResult = { text: '', type: 'raw' };
 
         if (isText) {
@@ -149,7 +150,7 @@ async function runAgentSync() {
           cleanResult = { text: decodedText, type: 'raw' };
           if (file.mimeType === 'text/html' || file.name.endsWith('.html')) {
             _writeConsoleLog(`🧹 HTML 명세서 스마트 테이블 필터링 적용 중...`);
-            const beforeLength = decodedText.length;
+            beforeLength = decodedText.length;
             cleanResult = cleanHtmlContent(decodedText, false);
             _writeConsoleLog(`🧹 HTML 정제 완료 [${cleanResult.type}]: 문자 수 ${beforeLength}자 ➡️ ${cleanResult.text.length}자 (약 ${Math.round((beforeLength - cleanResult.text.length) / beforeLength * 100)}% 감소)`);
           } else {
@@ -436,6 +437,30 @@ function cleanHtmlContent(htmlStr, forceFallback = false) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlStr, 'text/html');
     
+    // script 태그에서 거래 데이터(arUseDesc, UseDesc 등) 추출 시도
+    let scriptData = '';
+    try {
+      const scripts = doc.querySelectorAll('script');
+      const extractedLines = [];
+      scripts.forEach(script => {
+        const scriptContent = script.textContent || '';
+        if (scriptContent.includes('UseDesc') || scriptContent.includes('arUseDesc')) {
+          const lines = scriptContent.split('\n');
+          lines.forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed.includes('new UseDesc') || trimmed.includes('new UseDesc1') || trimmed.includes('arUseDesc[')) {
+              extractedLines.push(trimmed);
+            }
+          });
+        }
+      });
+      if (extractedLines.length > 0) {
+        scriptData = '\n\n[Script Data (Transactions)]\n' + extractedLines.join('\n');
+      }
+    } catch (e) {
+      console.warn('Script 데이터 추출 중 오류:', e);
+    }
+    
     if (!forceFallback) {
       // 1. 거래 내역 테이블 매칭 시도
       const tables = doc.querySelectorAll('table');
@@ -467,7 +492,7 @@ function cleanHtmlContent(htmlStr, forceFallback = false) {
                    .map(line => line.trim())
                    .filter(line => line.length > 0)
                    .join('\n');
-        return { text, type: 'table_filtered' };
+        return { text: text + scriptData, type: 'table_filtered' };
       }
     }
 
@@ -487,7 +512,7 @@ function cleanHtmlContent(htmlStr, forceFallback = false) {
                .filter(line => line.length > 0)
                .join('\n');
                
-    return { text, type: 'full_fallback' };
+    return { text: text + scriptData, type: 'full_fallback' };
   } catch (e) {
     console.error('HTML 정제 오류, 대체 정규식 파싱 적용:', e);
     // 폴백: 정규식으로 최소한의 태그와 공백 정리
@@ -502,7 +527,7 @@ function cleanHtmlContent(htmlStr, forceFallback = false) {
                .map(line => line.trim())
                .filter(line => line.length > 0)
                .join('\n');
-    return { text, type: 'regex_fallback' };
+    return { text: text + (typeof scriptData !== 'undefined' ? scriptData : ''), type: 'regex_fallback' };
   }
 }
 
