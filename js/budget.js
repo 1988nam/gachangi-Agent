@@ -27,11 +27,34 @@ const BudgetManager = (() => {
 
   function getAll() { return load(); }
 
-  return { get, set, getAll, save };
+  // 구글 시트 '예산설정'에서 최신 예산을 읽어와 localStorage 캐시 갱신(기기 간 동기화)
+  async function syncFromSheet() {
+    if (typeof SheetsAPI === 'undefined' || !SheetsAPI.loadBudgets) return load();
+    try {
+      const b = await SheetsAPI.loadBudgets();
+      save(b);
+      return b;
+    } catch (e) {
+      console.warn('[Budget] 시트 예산 로드 실패, 캐시 사용:', e);
+      return load();
+    }
+  }
+  // 예산 전체를 localStorage 캐시 + 구글 시트에 저장(영구·휘발 방지)
+  async function saveAll(budgets) {
+    save(budgets); // 캐시 즉시 반영
+    if (typeof SheetsAPI !== 'undefined' && SheetsAPI.saveBudgets) {
+      await SheetsAPI.saveBudgets(budgets); // 시트 영구 저장
+    }
+  }
+
+  return { get, set, getAll, save, syncFromSheet, saveAll };
 })();
 
 /** 예산 설정 탭 렌더링 */
-function renderBudgetTab() {
+async function renderBudgetTab() {
+  // 탭 진입 시 구글 시트에서 최신 예산을 불러와 반영(다른 기기 변경 동기화). 실패 시 캐시 사용.
+  if (BudgetManager.syncFromSheet) { try { await BudgetManager.syncFromSheet(); } catch (_) {} }
+
   const categories = SheetsAPI.getCategories().filter(c =>
     !['수입', '투자/저축', '저축', '이체', '입금'].includes(c)
   );
@@ -81,16 +104,25 @@ function renderBudgetTab() {
     }
   }
 
-  document.getElementById('budget-save-btn').onclick = () => {
+  document.getElementById('budget-save-btn').onclick = async () => {
+    // 기존 캐시값을 베이스로, 화면 입력값을 덮어써 전체 예산 구성(누락 카테고리 보존)
+    const budgets = { ...BudgetManager.getAll() };
     document.querySelectorAll('.budget-input').forEach(input => {
-      const cat = input.dataset.cat;
-      const amount = parseInt(input.value.replace(/,/g, '')) || 0;
-      BudgetManager.set(cat, amount);
+      budgets[input.dataset.cat] = parseInt(input.value.replace(/,/g, '')) || 0;
     });
-    showToast('✅ 예산이 저장되었습니다.');
-    // 대시보드 프로그레스바 업데이트
-    if (typeof _transactions !== 'undefined') {
-      renderBudgetBars(_transactions);
+
+    const btn = document.getElementById('budget-save-btn');
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = '💾 시트에 저장 중...';
+    try {
+      await BudgetManager.saveAll(budgets); // localStorage + 구글 시트
+      showToast('✅ 예산이 구글 시트에 저장되었습니다.');
+      if (typeof _transactions !== 'undefined') renderBudgetBars(_transactions);
+    } catch (e) {
+      console.error('[Budget] 예산 저장 실패:', e);
+      showToast('❌ 예산 저장 실패: ' + (e.message || e), 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
     }
   };
 

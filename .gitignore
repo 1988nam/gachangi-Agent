@@ -10,3 +10,7 @@ logs/
 # 로컬 설정 및 개인정보 파일
 js/config.js
 transactions.json
+
+# Cloudflare Pages 배포 산출물/캐시 (public 은 루트 소스의 배포용 복사본)
+.wrangler/
+public/

@@ -256,6 +256,10 @@ async function initApp(userInfo) {
   showLoading(true);
   try {
     await SheetsAPI.loadSpreadsheetMeta();
+    // 예산을 구글 시트에서 로드해 캐시에 채움(대시보드 예산 바·진척이 기기 간 동일하게)
+    if (typeof BudgetManager !== 'undefined' && BudgetManager.syncFromSheet) {
+      try { await BudgetManager.syncFromSheet(); } catch (e) { console.warn('[Budget] 초기 예산 로드 실패:', e); }
+    }
     initMonthSelector();
     initTransactionFilters();
     initAddForm(() => _currentMonth, loadCurrentMonth);

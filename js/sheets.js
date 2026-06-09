@@ -782,7 +782,63 @@ const SheetsAPI = (() => {
   function getSheetMeta() { return _sheetMeta; }
   function getColIndices() { return colIndices; }
 
+  // ─── 예산 설정 (구글 시트 '예산설정' 탭에 영구 저장 → 기기 간 동기화) ───
+  const BUDGET_SHEET = '예산설정';
+  async function _ensureBudgetSheet() {
+    if (Object.keys(_sheetMeta).length === 0) await loadSpreadsheetMeta();
+    if (_sheetMeta[BUDGET_SHEET] !== undefined) return;
+    const addRes = await gapi.client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: cfg.SPREADSHEET_ID,
+      resource: { requests: [{ addSheet: { properties: { title: BUDGET_SHEET } } }] },
+    });
+    const newId = addRes.result.replies?.[0]?.addSheet?.properties?.sheetId;
+    if (newId !== undefined) _sheetMeta[BUDGET_SHEET] = newId;
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: cfg.SPREADSHEET_ID,
+      range: `${BUDGET_SHEET}!A1:B1`,
+      valueInputOption: 'RAW',
+      resource: { values: [['카테고리', '월예산']] },
+    });
+  }
+  async function loadBudgets() {
+    try {
+      await _ensureBudgetSheet();
+      const res = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId: cfg.SPREADSHEET_ID,
+        range: `${BUDGET_SHEET}!A2:B1000`,
+      });
+      const rows = res.result.values || [];
+      const out = {};
+      rows.forEach(r => {
+        const cat = (r[0] || '').toString().trim();
+        if (!cat) return;
+        out[cat] = parseInt(String(r[1] || '0').replace(/[^0-9.-]/g, ''), 10) || 0;
+      });
+      return out;
+    } catch (e) { console.warn('[Sheets] 예산 로드 실패:', e); return {}; }
+  }
+  async function saveBudgets(budgets) {
+    await _ensureBudgetSheet();
+    const entries = Object.entries(budgets || {}).filter(([c]) => c && c.trim());
+    // 기존 값 전체 비우고 재작성(삭제된 항목 반영)
+    await gapi.client.sheets.spreadsheets.values.clear({
+      spreadsheetId: cfg.SPREADSHEET_ID,
+      range: `${BUDGET_SHEET}!A2:B1000`,
+    });
+    if (entries.length > 0) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: cfg.SPREADSHEET_ID,
+        range: `${BUDGET_SHEET}!A2`,
+        valueInputOption: 'RAW',
+        resource: { values: entries.map(([cat, amt]) => [cat, amt]) },
+      });
+    }
+    return { success: true };
+  }
+
   return {
+    loadBudgets,
+    saveBudgets,
     loadSpreadsheetMeta,
     loadMonthData,
     updateCell: async (m, r, c, v) => {
