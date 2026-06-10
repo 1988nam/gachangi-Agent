@@ -70,13 +70,13 @@ async function renderBudgetTab() {
     row.innerHTML = `
       <div class="budget-cat-name">
         <span class="cat-badge">${getCategoryEmoji(cat)}</span>
-        <span>${cat}</span>
+        <span>${escapeHtml(cat)}</span>
       </div>
       <div class="budget-input-wrap">
         <input
           type="text"
           class="budget-input"
-          data-cat="${cat}"
+          data-cat="${escapeHtml(cat)}"
           value="${amount ? amount.toLocaleString('ko-KR') : ''}"
           placeholder="월 예산 (원)"
         />

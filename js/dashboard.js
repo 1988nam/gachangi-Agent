@@ -128,7 +128,7 @@ function _renderDashboardCatList(catTotals, catCounts, totalExp, allExpenses) {
 
     item.innerHTML = `
       <div class="budget-bar-header">
-        <span class="budget-bar-label">${emoji} ${cat} <small style="color: var(--text-muted); font-size:11px; margin-left:4px;">(${count}건)</small></span>
+        <span class="budget-bar-label">${emoji} ${escapeHtml(cat)} <small style="color: var(--text-muted); font-size:11px; margin-left:4px;">(${count}건)</small></span>
         <span class="budget-bar-amounts" style="font-weight:600;">
           ${formatWon(amount)} <span style="color:${color}; font-size:11px; margin-left:4px;">${pct}%</span>
         </span>
@@ -169,11 +169,11 @@ function _renderDashboardCatDetailsTable(transactions, categoryName) {
     tr.className = tx.needsReview ? 'needs-review' : '';
     const isSaving = tx.cat === '투자/저축';
     tr.innerHTML = `
-      <td><span class="date-badge">${tx.date}</span></td>
-      <td class="desc-cell" title="${tx.desc}">${tx.desc}</td>
+      <td><span class="date-badge">${escapeHtml(tx.date)}</span></td>
+      <td class="desc-cell" title="${escapeHtml(tx.desc)}">${escapeHtml(tx.desc)}</td>
       <td class="${isSaving ? 'amount-cell save' : 'amount-cell exp'}">${isSaving ? `<span style="font-size: 11px; opacity: 0.8; margin-right: 4px;">(저축)</span>` + formatWon(tx.exp) : formatWon(tx.exp)}</td>
-      <td><span class="cat-chip">${getCategoryEmoji(tx.cat)} ${tx.cat}</span></td>
-      <td><span class="method-chip">${tx.method}</span></td>
+      <td><span class="cat-chip">${getCategoryEmoji(tx.cat)} ${escapeHtml(tx.cat)}</span></td>
+      <td><span class="method-chip">${escapeHtml(tx.method)}</span></td>
     `;
     tbody.appendChild(tr);
   });
@@ -357,18 +357,18 @@ function _renderDashboardTrendDetailsTable(monthName, type) {
     const tr = document.createElement('tr');
     tr.className = tx.needsReview ? 'needs-review' : '';
     tr.innerHTML = `
-      <td><span class="date-badge">${tx.date}</span></td>
-      <td class="desc-cell" title="${tx.desc}">${tx.desc}</td>
+      <td><span class="date-badge">${escapeHtml(tx.date)}</span></td>
+      <td class="desc-cell" title="${escapeHtml(tx.desc)}">${escapeHtml(tx.desc)}</td>
       <td class="amount-cell inc">${tx.inc > 0 ? formatWon(tx.inc) : '-'}</td>
       <td class="${tx.cat === '투자/저축' ? 'amount-cell save' : 'amount-cell exp'}">
-        ${tx.exp > 0 
-          ? (tx.cat === '투자/저축' 
-              ? `<span style="font-size: 11px; opacity: 0.8; margin-right: 4px;">(저축)</span>${formatWon(tx.exp)}` 
-              : formatWon(tx.exp)) 
+        ${tx.exp > 0
+          ? (tx.cat === '투자/저축'
+              ? `<span style="font-size: 11px; opacity: 0.8; margin-right: 4px;">(저축)</span>${formatWon(tx.exp)}`
+              : formatWon(tx.exp))
           : '-'}
       </td>
-      <td><span class="cat-chip">${getCategoryEmoji(tx.cat)} ${tx.cat}</span></td>
-      <td><span class="method-chip">${tx.method}</span></td>
+      <td><span class="cat-chip">${getCategoryEmoji(tx.cat)} ${escapeHtml(tx.cat)}</span></td>
+      <td><span class="method-chip">${escapeHtml(tx.method)}</span></td>
     `;
     tbody.appendChild(tr);
   });

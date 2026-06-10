@@ -45,16 +45,16 @@ function renderTransactionsTab(transactions, monthName) {
     tr.className = tx.needsReview ? 'tx-row needs-review' : 'tx-row';
     const isSaving = tx.cat === '투자/저축';
     tr.innerHTML = `
-      <td><span class="date-badge">${tx.date}</span></td>
-      <td class="desc-cell" title="${tx.desc}">${tx.desc}</td>
+      <td><span class="date-badge">${escapeHtml(tx.date)}</span></td>
+      <td class="desc-cell" title="${escapeHtml(tx.desc)}">${escapeHtml(tx.desc)}</td>
       <td class="amount-cell inc">${tx.inc > 0 ? formatWon(tx.inc) : '-'}</td>
       <td class="${isSaving ? 'amount-cell save' : 'amount-cell exp'}">
-        ${tx.exp > 0 
-          ? (isSaving ? `<span style="font-size: 11px; opacity: 0.8; margin-right: 4px;">(저축)</span>${formatWon(tx.exp)}` : formatWon(tx.exp)) 
+        ${tx.exp > 0
+          ? (isSaving ? `<span style="font-size: 11px; opacity: 0.8; margin-right: 4px;">(저축)</span>${formatWon(tx.exp)}` : formatWon(tx.exp))
           : '-'}
       </td>
-      <td><span class="cat-chip">${getCategoryEmoji(tx.cat)} ${tx.cat}</span></td>
-      <td><span class="method-chip">${tx.method}</span></td>
+      <td><span class="cat-chip">${getCategoryEmoji(tx.cat)} ${escapeHtml(tx.cat)}</span></td>
+      <td><span class="method-chip">${escapeHtml(tx.method)}</span></td>
       <td class="row-index-cell">#${tx.rowIndex}</td>
       <td>
         <button class="btn-edit btn-text" data-row="${tx.rowIndex}" style="padding: 2px 6px; font-size: 11px; background: var(--color-primary); color: white; border-radius: 4px; border: none; cursor: pointer; margin-right: 4px;">수정</button>
@@ -74,18 +74,18 @@ function renderTransactionsTab(transactions, monthName) {
       const tr = e.target.closest('tr');
       // 행을 입력 폼으로 변환
       tr.innerHTML = `
-        <td><input type="text" class="edit-date" value="${tx.date}" style="width: 50px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
-        <td><input type="text" class="edit-desc" value="${tx.desc}" style="width: 90%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
+        <td><input type="text" class="edit-date" value="${escapeHtml(tx.date)}" style="width: 50px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
+        <td><input type="text" class="edit-desc" value="${escapeHtml(tx.desc)}" style="width: 90%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
         <td><input type="text" class="edit-inc" value="${tx.inc ? tx.inc.toLocaleString('ko-KR') : ''}" style="width: 70px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
         <td><input type="text" class="edit-exp" value="${tx.exp ? tx.exp.toLocaleString('ko-KR') : ''}" style="width: 70px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
         <td>
           <select class="edit-cat" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
-            ${SheetsAPI.getCategories().map(c => `<option value="${c}" ${c === tx.cat ? 'selected' : ''}>${c}</option>`).join('')}
+            ${SheetsAPI.getCategories().map(c => `<option value="${escapeHtml(c)}" ${c === tx.cat ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
           </select>
         </td>
         <td>
           <select class="edit-method" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
-            ${SheetsAPI.getMethods().map(m => `<option value="${m}" ${m === tx.method ? 'selected' : ''}>${m}</option>`).join('')}
+            ${SheetsAPI.getMethods().map(m => `<option value="${escapeHtml(m)}" ${m === tx.method ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
           </select>
         </td>
         <td class="row-index-cell">#${tx.rowIndex}</td>
@@ -169,10 +169,10 @@ function initTransactionFilters() {
     methodSel.innerHTML = '<option value="">전체 수단</option>';
 
     SheetsAPI.getCategories().forEach(c => {
-      catSel.innerHTML += `<option value="${c}">${c}</option>`;
+      catSel.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
     });
     SheetsAPI.getMethods().forEach(m => {
-      methodSel.innerHTML += `<option value="${m}">${m}</option>`;
+      methodSel.innerHTML += `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`;
     });
   }
 

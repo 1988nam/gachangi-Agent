@@ -15,6 +15,9 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
 const TOKEN_PATH = path.join(__dirname, 'token.json');
 const DB_PATH = path.join(__dirname, 'data', 'transactions.json');
+// 시트를 지우기(batchClear) 전에 현재 값을 백업할 파일(되돌리기 대비). 실행 시각으로 구분.
+const RUN_TS = new Date().toISOString().replace(/[:.]/g, '-');
+const BACKUP_PATH = path.join(__dirname, 'data', `sheets_sync_backup_${RUN_TS}.json`);
 
 if (!fs.existsSync(TOKEN_PATH)) {
   console.error('❌ token.json 파일이 없습니다. 먼저 브라우저에서 로그인하여 인증을 완료해 주세요.');
@@ -51,6 +54,9 @@ async function runSync() {
     sheetMeta[s.properties.title] = s.properties.sheetId;
   });
 
+  // 지우기 전 원본 시트 값을 누적 백업(월별로 clear 직전에 채워짐).
+  const sheetBackup = { spreadsheetId: SPREADSHEET_ID, savedAt: RUN_TS, months: {} };
+
   // 2. Read local transactions
   let fileContent = fs.readFileSync(DB_PATH, 'utf-8');
   if (fileContent.startsWith('\ufeff')) {
@@ -79,6 +85,18 @@ async function runSync() {
     // to ensure they are written in correct sequential order.
     const txs = monthlyData[month].sort((a, b) => a.rowIndex - b.rowIndex);
     console.log(`⚙️  [${month}] 시트 동기화 중... (${txs.length}건)`);
+
+    // 0. (안전장치) 지우기 전 현재 시트 값을 읽어 로컬 백업 파일에 저장한다.
+    //    clear/write 도중 실패하거나 로컬 데이터가 불완전해도 원본을 되돌릴 수 있게 한다.
+    const backupRes = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId: SPREADSHEET_ID,
+      ranges: [`${month}!A4:D500`, `${month}!F4:G500`],
+    });
+    sheetBackup.months[month] = (backupRes.data.valueRanges || []).map(v => ({
+      range: v.range, values: v.values || [],
+    }));
+    fs.writeFileSync(BACKUP_PATH, JSON.stringify(sheetBackup, null, 2), 'utf-8'); // clear 전에 디스크 반영
+    console.log(`💾 [${month}] 백업 저장됨 → ${path.basename(BACKUP_PATH)}`);
 
     // 1. Clear existing data in columns A-D and F-G (leaving E untouched just in case)
     // Clear up to row 500

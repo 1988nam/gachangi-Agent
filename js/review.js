@@ -35,29 +35,29 @@ function renderReviewTab(transactions, monthName) {
     tr.className = 'review-row';
     const isSaving = tx.cat === '투자/저축';
     tr.innerHTML = `
-      <td><input type="checkbox" class="review-check-item" data-row="${tx.rowIndex}" data-month="${itemMonth}"></td>
-      <td><span class="date-badge">${tx.date}</span></td>
-      <td class="desc-cell" title="${tx.desc}">${tx.desc}</td>
+      <td><input type="checkbox" class="review-check-item" data-row="${tx.rowIndex}" data-month="${escapeHtml(itemMonth)}"></td>
+      <td><span class="date-badge">${escapeHtml(tx.date)}</span></td>
+      <td class="desc-cell" title="${escapeHtml(tx.desc)}">${escapeHtml(tx.desc)}</td>
       <td class="amount-cell inc">${tx.inc > 0 ? formatWon(tx.inc) : ''}</td>
       <td class="${isSaving ? 'amount-cell save' : 'amount-cell exp'}">
-        ${tx.exp > 0 
-          ? (isSaving ? `<span style="font-size: 11px; opacity: 0.8; margin-right: 4px;">(저축)</span>${formatWon(tx.exp)}` : formatWon(tx.exp)) 
+        ${tx.exp > 0
+          ? (isSaving ? `<span style="font-size: 11px; opacity: 0.8; margin-right: 4px;">(저축)</span>${formatWon(tx.exp)}` : formatWon(tx.exp))
           : ''}
       </td>
       <td>
-        <select class="inline-select cat-select" data-row="${tx.rowIndex}" data-month="${itemMonth}">
-          ${categories.map(c => `<option value="${c}" ${c === tx.cat ? 'selected' : ''}>${c}</option>`).join('')}
+        <select class="inline-select cat-select" data-row="${tx.rowIndex}" data-month="${escapeHtml(itemMonth)}">
+          ${categories.map(c => `<option value="${escapeHtml(c)}" ${c === tx.cat ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
         </select>
       </td>
       <td>
-        <select class="inline-select method-select" data-row="${tx.rowIndex}" data-month="${itemMonth}">
-          ${methods.map(m => `<option value="${m}" ${m === tx.method ? 'selected' : ''}>${m}</option>`).join('')}
+        <select class="inline-select method-select" data-row="${tx.rowIndex}" data-month="${escapeHtml(itemMonth)}">
+          ${methods.map(m => `<option value="${escapeHtml(m)}" ${m === tx.method ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
         </select>
       </td>
       <td>
-        <button class="btn-done btn-text" data-row="${tx.rowIndex}" data-month="${itemMonth}" style="padding: 2px 6px; font-size: 11px; background: var(--color-success); color: white; border-radius: 4px; border: none; cursor: pointer; margin-right: 4px;">완료</button>
-        <button class="btn-edit btn-text" data-row="${tx.rowIndex}" data-month="${itemMonth}" style="padding: 2px 6px; font-size: 11px; background: var(--color-primary); color: white; border-radius: 4px; border: none; cursor: pointer; margin-right: 4px;">수정</button>
-        <button class="btn-delete btn-text" data-row="${tx.rowIndex}" data-month="${itemMonth}" style="padding: 2px 6px; font-size: 11px; background: var(--color-danger); color: white; border-radius: 4px; border: none; cursor: pointer;">삭제</button>
+        <button class="btn-done btn-text" data-row="${tx.rowIndex}" data-month="${escapeHtml(itemMonth)}" style="padding: 2px 6px; font-size: 11px; background: var(--color-success); color: white; border-radius: 4px; border: none; cursor: pointer; margin-right: 4px;">완료</button>
+        <button class="btn-edit btn-text" data-row="${tx.rowIndex}" data-month="${escapeHtml(itemMonth)}" style="padding: 2px 6px; font-size: 11px; background: var(--color-primary); color: white; border-radius: 4px; border: none; cursor: pointer; margin-right: 4px;">수정</button>
+        <button class="btn-delete btn-text" data-row="${tx.rowIndex}" data-month="${escapeHtml(itemMonth)}" style="padding: 2px 6px; font-size: 11px; background: var(--color-danger); color: white; border-radius: 4px; border: none; cursor: pointer;">삭제</button>
       </td>
     `;
     container.appendChild(tr);
@@ -175,18 +175,18 @@ function renderReviewTab(transactions, monthName) {
       const tr = e.target.closest('tr');
       tr.innerHTML = `
         <td><input type="checkbox" disabled></td>
-        <td><input type="text" class="edit-date" value="${tx.date}" style="width: 55px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
-        <td><input type="text" class="edit-desc" value="${tx.desc}" style="width: 90%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
+        <td><input type="text" class="edit-date" value="${escapeHtml(tx.date)}" style="width: 55px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
+        <td><input type="text" class="edit-desc" value="${escapeHtml(tx.desc)}" style="width: 90%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
         <td><input type="text" class="edit-inc" value="${tx.inc ? tx.inc.toLocaleString('ko-KR') : ''}" style="width: 75px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
         <td><input type="text" class="edit-exp" value="${tx.exp ? tx.exp.toLocaleString('ko-KR') : ''}" style="width: 75px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
         <td>
           <select class="edit-cat" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
-            ${categories.map(c => `<option value="${c}" ${c === tx.cat ? 'selected' : ''}>${c}</option>`).join('')}
+            ${categories.map(c => `<option value="${escapeHtml(c)}" ${c === tx.cat ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
           </select>
         </td>
         <td>
           <select class="edit-method" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
-            ${methods.map(m => `<option value="${m}" ${m === tx.method ? 'selected' : ''}>${m}</option>`).join('')}
+            ${methods.map(m => `<option value="${escapeHtml(m)}" ${m === tx.method ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
           </select>
         </td>
         <td>

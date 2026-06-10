@@ -143,7 +143,7 @@ function _renderMonthlyCatList(catTotals, catCounts, totalExp, allExpenses) {
 
     item.innerHTML = `
       <div class="budget-bar-header">
-        <span class="budget-bar-label">${emoji} ${cat} <small style="color: var(--text-muted); font-size:11px; margin-left:4px;">(${count}건)</small></span>
+        <span class="budget-bar-label">${emoji} ${escapeHtml(cat)} <small style="color: var(--text-muted); font-size:11px; margin-left:4px;">(${count}건)</small></span>
         <span class="budget-bar-amounts" style="font-weight:600;">
           ${formatWon(amount)} <span style="color:${color}; font-size:11px; margin-left:4px;">${pct}%</span>
         </span>
@@ -187,11 +187,11 @@ function _renderMonthlyCatDetailsTable(transactions, categoryName) {
     const isSaving = tx.cat === '투자/저축';
     tr.innerHTML = `
       <td><input type="checkbox" class="monthly-row-check" data-row="${tx.rowIndex}" style="cursor: pointer;"></td>
-      <td><span class="date-badge">${tx.date}</span></td>
-      <td class="desc-cell" title="${tx.desc}">${tx.desc}</td>
+      <td><span class="date-badge">${escapeHtml(tx.date)}</span></td>
+      <td class="desc-cell" title="${escapeHtml(tx.desc)}">${escapeHtml(tx.desc)}</td>
       <td class="${isSaving ? 'amount-cell save' : 'amount-cell exp'}">${isSaving ? `<span style="font-size: 11px; opacity: 0.8; margin-right: 4px;">(저축)</span>` + formatWon(tx.exp) : formatWon(tx.exp)}</td>
-      <td><span class="cat-chip">${getCategoryEmoji(tx.cat)} ${tx.cat}</span></td>
-      <td><span class="method-chip">${tx.method}</span></td>
+      <td><span class="cat-chip">${getCategoryEmoji(tx.cat)} ${escapeHtml(tx.cat)}</span></td>
+      <td><span class="method-chip">${escapeHtml(tx.method)}</span></td>
       <td>
         <button class="btn-monthly-edit btn-text" data-row="${tx.rowIndex}" style="padding: 2px 6px; font-size: 11px; background: var(--color-primary); color: white; border-radius: 4px; border: none; cursor: pointer; margin-right: 4px;">수정</button>
         <button class="btn-monthly-delete btn-text" data-row="${tx.rowIndex}" style="padding: 2px 6px; font-size: 11px; background: var(--color-danger); color: white; border-radius: 4px; border: none; cursor: pointer;">삭제</button>
@@ -218,17 +218,17 @@ function _renderMonthlyCatDetailsTable(transactions, categoryName) {
       // 행을 입력 폼으로 변환 (체크박스 열 유지)
       tr.innerHTML = `
         <td><input type="checkbox" class="monthly-row-check" data-row="${tx.rowIndex}" disabled style="opacity: 0.5;"></td>
-        <td><input type="text" class="edit-monthly-date" value="${tx.date}" style="width: 50px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
-        <td><input type="text" class="edit-monthly-desc" value="${tx.desc}" style="width: 90%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
+        <td><input type="text" class="edit-monthly-date" value="${escapeHtml(tx.date)}" style="width: 50px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
+        <td><input type="text" class="edit-monthly-desc" value="${escapeHtml(tx.desc)}" style="width: 90%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
         <td><input type="text" class="edit-monthly-exp" value="${tx.exp ? tx.exp.toLocaleString('ko-KR') : ''}" style="width: 70px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
         <td>
           <select class="edit-monthly-cat" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
-            ${SheetsAPI.getCategories().map(c => `<option value="${c}" ${c === tx.cat ? 'selected' : ''}>${c}</option>`).join('')}
+            ${SheetsAPI.getCategories().map(c => `<option value="${escapeHtml(c)}" ${c === tx.cat ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
           </select>
         </td>
         <td>
           <select class="edit-monthly-method" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
-            ${SheetsAPI.getMethods().map(m => `<option value="${m}" ${m === tx.method ? 'selected' : ''}>${m}</option>`).join('')}
+            ${SheetsAPI.getMethods().map(m => `<option value="${escapeHtml(m)}" ${m === tx.method ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
           </select>
         </td>
         <td>
@@ -331,7 +331,7 @@ function renderBudgetBars(transactions) {
     container.innerHTML += `
       <div class="budget-bar-item">
         <div class="budget-bar-header">
-          <span class="budget-bar-label">${emoji} ${cat}</span>
+          <span class="budget-bar-label">${emoji} ${escapeHtml(cat)}</span>
           <span class="budget-bar-amounts ${over ? 'over' : ''}">
             ${formatWon(spent)} / ${formatWon(budget)}
             ${over ? `<span class="over-badge">+${formatWon(spent - budget)}</span>` : ''}
@@ -379,14 +379,14 @@ function initMonthlyDashboardEvents() {
   if (catSelect) {
     catSelect.innerHTML = '<option value="">분류 일괄 변경</option>';
     SheetsAPI.getCategories().forEach(c => {
-      catSelect.innerHTML += `<option value="${c}">${c}</option>`;
+      catSelect.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
     });
   }
 
   if (methodSelect) {
     methodSelect.innerHTML = '<option value="">수단 일괄 변경</option>';
     SheetsAPI.getMethods().forEach(m => {
-      methodSelect.innerHTML += `<option value="${m}">${m}</option>`;
+      methodSelect.innerHTML += `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`;
     });
   }
 

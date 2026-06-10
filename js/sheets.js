@@ -159,10 +159,13 @@ const SheetsAPI = (() => {
 
   function _normalizeCategory(cat, desc) {
     const trimmedDesc = (desc || '').trim();
-    if (trimmedDesc.includes('공금') || trimmedDesc.includes('혜영 공금') || trimmedDesc.includes('혜영공금')) {
+    const trimmed = (cat || '').trim();
+    // (버그수정) 과거: desc에 '공금'이 포함되면 명시 분류(cat)를 무시하고 무조건 '기타'로 덮어썼다.
+    // → 예) '공금-마트장보기'(분류 생활비)가 '기타'로 둔갑. 이제는 명시 분류가 없을 때만
+    //    '공금' 항목을 '기타'로 분류하고, 분류가 지정돼 있으면 그 분류를 존중한다.
+    if (!trimmed && (trimmedDesc.includes('공금') || trimmedDesc.includes('혜영 공금') || trimmedDesc.includes('혜영공금'))) {
       return '기타';
     }
-    const trimmed = (cat || '').trim();
     const mapping = {
       '식비': '생활비', '식생활': '생활비', '외식': '생활비', '배달': '생활비', '마트': '생활비', '식재료': '생활비', '생필품': '생활비', '생활용품': '생활비',
       '자동차': '교통/차량', '교통': '교통/차량', '교통비': '교통/차량', '주유': '교통/차량', '차량': '교통/차량',
@@ -530,7 +533,16 @@ const SheetsAPI = (() => {
     const sheetTxs = await loadMonthData(startMonthName);
     const originalTx = sheetTxs.find(t => t.rowIndex === rowIndex);
     if (!originalTx) throw new Error(`수정할 고정비 행을 찾을 수 없음: #${rowIndex}`);
-    const oldDesc = originalTx.desc;
+    // 미래 월 매칭 기준: desc(내용)만으로는 동명 항목 오삭제·수입/지출 전도가 발생한다.
+    // → 내용 + 분류(cat) + 수입/지출 성격(polarity)을 모두 일치시켜 안전하게 식별한다.
+    const oldDesc = (originalTx.desc || '').trim();
+    const oldCat = (originalTx.cat || '').trim();
+    const oldIsIncome = (Number(originalTx.inc) || 0) > 0;
+    const _matchesFixed = (t, month) =>
+      t.month === month && t.date === '-' &&
+      (t.desc || '').trim() === oldDesc &&
+      (t.cat || '').trim() === oldCat &&
+      (((Number(t.inc) || 0) > 0) === oldIsIncome);
 
     // 현재 월 업데이트
     await updateRow(startMonthName, rowIndex, { ...data, date: '-' });
@@ -552,7 +564,7 @@ const SheetsAPI = (() => {
     const updatesByMonth = {};
 
     for (const month of futureMonths) {
-      const target = allData.find(t => t.month === month && t.date === '-' && (t.desc || '').trim() === (oldDesc || '').trim());
+      const target = allData.find(t => _matchesFixed(t, month));
       if (target) {
         const finalInc = (data.cat === '수입' || target.cat === '수입') ? target.inc : data.inc;
         if (!updatesByMonth[month]) updatesByMonth[month] = [];
@@ -580,7 +592,15 @@ const SheetsAPI = (() => {
     const sheetTxs = await loadMonthData(startMonthName);
     const originalTx = sheetTxs.find(t => t.rowIndex === rowIndex);
     if (!originalTx) throw new Error(`삭제할 고정비 행을 찾을 수 없음: #${rowIndex}`);
-    const oldDesc = originalTx.desc;
+    // 동명 항목 오삭제·수입/지출 전도 방지: 내용 + 분류 + 수입/지출 성격을 모두 일치시켜 식별.
+    const oldDesc = (originalTx.desc || '').trim();
+    const oldCat = (originalTx.cat || '').trim();
+    const oldIsIncome = (Number(originalTx.inc) || 0) > 0;
+    const _matchesFixed = (t, month) =>
+      t.month === month && t.date === '-' &&
+      (t.desc || '').trim() === oldDesc &&
+      (t.cat || '').trim() === oldCat &&
+      (((Number(t.inc) || 0) > 0) === oldIsIncome);
 
     // 현재 월 삭제
     await deleteRow(startMonthName, rowIndex);
@@ -599,7 +619,7 @@ const SheetsAPI = (() => {
     }
 
     for (const month of futureMonths) {
-      const target = allData.find(t => t.month === month && t.date === '-' && (t.desc || '').trim() === (oldDesc || '').trim());
+      const target = allData.find(t => _matchesFixed(t, month));
       if (target) {
         await deleteRow(month, target.rowIndex);
       }

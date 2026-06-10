@@ -259,9 +259,12 @@ async function runAgentSync() {
             
             const existingDesc = (existing.desc || '').trim();
             const itemDesc = (item.desc || '').trim();
-            const descMatch = existingDesc === itemDesc || 
-                              existingDesc.includes(itemDesc) || 
-                              itemDesc.includes(existingDesc);
+            // 빈 문자열은 모든 문자열에 includes()되므로, 한쪽이 비어 있으면 부분일치를 적용하지 않는다.
+            // (과거 버그: 내용이 빈 정상 거래가 금액·날짜만 같으면 무조건 중복으로 판정되어 누락)
+            const descMatch =
+              existingDesc === itemDesc ||
+              (existingDesc !== '' && itemDesc !== '' &&
+                (existingDesc.includes(itemDesc) || itemDesc.includes(existingDesc)));
 
             // 기존 내역이 고정비(isFixed)인 경우 날짜와 상관없이 같은 달 내의 동일한 명칭/금액은 중복으로 판별해 이중 지출 기입 방지
             const dateMatch = existing.isFixed ? true : (existing.date === item.date);

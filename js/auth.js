@@ -3,6 +3,21 @@
  * 백엔드 서버 없이 브라우저에서 직접 Google Identity Services(GIS) 팝업을 통해 Access Token을 획득하고 로컬에 캐시합니다.
  */
 
+// ── XSS 방지: 전역 HTML 이스케이프 ───────────────────────────────
+// 명세서(Gemini OCR)·구글시트 셀에서 온 내용(desc·분류·결제수단 등)을 innerHTML로
+// 렌더링할 때 반드시 거쳐야 한다. 속성값(title="...", value="...") 안전을 위해
+// 따옴표(" ')까지 이스케이프한다. (auth.js가 가장 먼저 로드되므로 여기 정의)
+if (typeof window.escapeHtml !== 'function') {
+  window.escapeHtml = function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+}
+
 const Auth = (() => {
   let accessToken = null;
   let tokenClient = null;

@@ -18,10 +18,10 @@ function openAddModal(mode = 'normal') {
     catSel.innerHTML    = '';
     methodSel.innerHTML = '';
     SheetsAPI.getCategories().forEach(c => {
-      catSel.innerHTML += `<option value="${c}">${c}</option>`;
+      catSel.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
     });
     SheetsAPI.getMethods().forEach(m => {
-      methodSel.innerHTML += `<option value="${m}">${m}</option>`;
+      methodSel.innerHTML += `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`;
     });
   }
 

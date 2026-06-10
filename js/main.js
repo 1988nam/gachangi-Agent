@@ -12,7 +12,9 @@ let _isLoadingData   = false;
 // ─── 유틸리티 ─────────────────────────────────────────
 function formatWon(n) {
   if (!n || n === 0) return '0원';
-  return Math.abs(n).toLocaleString('ko-KR') + '원';
+  // 과거 Math.abs로 음수 부호를 제거해 적자(-)가 흑자(+)처럼 보였다. 부호를 보존한다.
+  // (수입/지출 칸은 이미 양수로 저장되어 영향 없음, 순액·잔액의 적자만 '-'로 표시)
+  return n.toLocaleString('ko-KR') + '원';
 }
 
 function formatInputWithCommas(e) {

@@ -13,9 +13,10 @@ if (Test-Path $dbPath) {
     $monthName = $g.Name
     $idx = 4
     foreach ($item in $g.Group) {
-      # If rowIndex is already present and valid, we could keep it, but it's safer to re-assign sequentially
-      # since they were originally sequential in Google Sheets anyway.
-      if ($null -eq $item.rowIndex -or $item.rowIndex -eq 0 -or $true) {
+      # 기존 rowIndex가 유효하면(실제 구글시트 행을 가리킴) 그대로 보존한다.
+      # 과거 '-or $true' 버그로 항상 재할당 → 시트 실제 행과 어긋나 이후 수정/삭제가
+      # 엉뚱한 행을 건드렸다. 비어 있거나 0일 때만 순차 부여한다.
+      if ($null -eq $item.rowIndex -or $item.rowIndex -eq 0) {
         $item | Add-Member -MemberType NoteProperty -Name "rowIndex" -Value $idx -Force
       }
       $updatedTxs += $item
