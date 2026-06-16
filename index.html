@@ -25,8 +25,18 @@
       return false;
     };
     window.onunhandledrejection = function(event) {
-      const errStr = `[Promise Rejection] ${event.reason}`;
-      console.error(errStr, event.reason);
+      const r = event.reason;
+      let detail;
+      try {
+        if (r == null) detail = String(r);
+        else if (typeof r === 'string') detail = r;
+        else if (r.result && r.result.error && r.result.error.message) detail = '[' + (r.result.error.code || '?') + '] ' + r.result.error.message;
+        else if (r.message) detail = r.message;
+        else if (r.error && (r.error.message || typeof r.error === 'string')) detail = r.error.message || r.error;
+        else detail = JSON.stringify(r);
+      } catch (e) { detail = String(r); }
+      const errStr = `[Promise Rejection] ${detail}`;
+      console.error(errStr, r);
       alert('⚠️ 비동기 처리 중 에러가 발생했습니다:\n' + errStr);
       const loader = document.getElementById('loading-overlay');
       if (loader) loader.style.display = 'none';
