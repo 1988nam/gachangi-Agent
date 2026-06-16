@@ -76,3 +76,19 @@
 3. **지침 프롬프트**: 사용자가 새로운 대화방에서 다음과 같이 요청하면, 해당 지침에 기반하여 코드의 일관성을 유지하며 구현해야 합니다:
    > *"프로젝트 내의 `docs/architecture_design.md` 파일에 적혀있는 가계부 대시보드 서버리스 인증 구조와 비즈니스 룰, 스타일 규칙을 먼저 읽어보고 작업 계획을 세워줘."*
 
+---
+
+## 7. 무인 에이전트 Worker (Gmail → Drive → Sheets)
+
+기존 Google Apps Script(Gmail `가계부` 라벨 메일을 Drive로 이동)를 대체하는 **Cloudflare Cron Worker**(`worker/` 디렉터리). 브라우저(탭 열림) 의존 없이 서버에서 무인 실행된다.
+
+- **트리거**: cron `*/15`(폴링) + `POST /run`(브라우저 '즉시 실행' 버튼). 본체 `runPipeline`은 트리거 비종속이라 향후 Gmail push(`users.watch`+Pub/Sub) 웹훅도 본체 변경 없이 추가 가능.
+- **인증(무인)**: 개인 Gmail이라 서비스계정 불가 → **offline refresh_token** 방식. `refresh_token`/`client_secret`은 Worker secret 전용(브라우저·Git·`public/` 유입 금지). access_token은 KV에 캐시.
+- **스코프**: `gmail.modify`(처리완료 라벨 부착) + `drive` + `spreadsheets`. (브라우저 앱의 SCOPES에는 gmail을 추가하지 않음 — Gmail 호출은 Worker만 수행)
+- **파이프라인**:
+  1. `ingestGmail` — `가계부` 라벨 메일의 첨부/본문을 Drive SOURCE에 multipart 업로드(원본 mimeType·확장자 보존). 업로드 성공 후에만 `가계부/처리완료` 하위라벨을 부착해 **멱등성** 확보.
+  2. `processDrive` — 브라우저 `runAgentSync` 로직 이식. SOURCE 스캔→Gemini 파싱→중복판정→Sheets 기록(노란색 미검토)→성공 ARCHIVE 이동/일시오류 SOURCE 유지/영구오류 FAIL 격리. **폴더=상태머신**(투입/완료/실패)은 동일.
+- **Workers 런타임 제약**: `DOMParser` 없음 → HTML 정제는 정규식(`gemini.js cleanHtmlText`). `TextDecoder('euc-kr')` 미지원 가능 → `decode.js`가 경고 후 폴백(현대카드 EUC-KR 명세서는 CP949 디코더 번들이 필요할 수 있음, 실제 명세서로 검증 요).
+- **브라우저 연동**: `GACHANGI_CONFIG.AGENT_WORKER_URL` 설정 시 '즉시 실행' 버튼이 Worker `/run` 호출, 미설정 시 기존 로컬 `runAgentSync` 폴백(비파괴).
+- **운영 문서**: 1회 설정은 `worker/README.md`, GScript 전환 절차는 `worker/CUTOVER.md` 참조.
+

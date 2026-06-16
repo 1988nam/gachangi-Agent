@@ -1,0 +1,33 @@
+name = "gachangi-agent-worker"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# 주기 트리거(폴링). '가계부' 라벨 메일을 Drive로 적재 → 파싱 → 시트 기록.
+# 거의 실시간이 필요하면 Gmail push(users.watch + Pub/Sub) 웹훅으로 교체/병행 가능.
+# runPipeline은 트리거 비종속이므로 본체 변경 없이 웹훅만 추가하면 됨.
+[triggers]
+crons = ["*/15 * * * *"]
+
+# 토큰 캐시 + 동시 실행 락 + (향후) 마지막 historyId 저장용.
+# 생성:  wrangler kv namespace create STATE
+# 출력된 id를 아래에 붙여넣으세요.
+[[kv_namespaces]]
+binding = "STATE"
+id = "<KV_NAMESPACE_ID>"
+
+# 비밀이 아닌 설정값(폴더 ID·시트 ID·라벨명). 비밀값은 절대 여기 적지 말 것.
+[vars]
+GMAIL_SOURCE_LABEL = "가계부"
+GMAIL_DONE_LABEL = "가계부/처리완료"
+SPREADSHEET_ID = "<SPREADSHEET_ID>"
+SOURCE_FOLDER_ID = "<SOURCE_FOLDER_ID>"
+ARCHIVE_FOLDER_ID = "<ARCHIVE_FOLDER_ID>"
+FAIL_FOLDER_ID = "<FAIL_FOLDER_ID>"
+ALLOWED_ORIGIN = "*"   # 브라우저 '즉시 실행' 버튼 호출 출처. 배포 후 Pages 도메인으로 좁히는 것을 권장.
+
+# ── 비밀값은 `wrangler secret put <NAME>` 으로 등록 (wrangler.toml/Git에 두지 말 것) ──
+#   GOOGLE_CLIENT_ID        OAuth 웹 클라이언트 ID
+#   GOOGLE_CLIENT_SECRET    OAuth 웹 클라이언트 secret (서버측에서만 사용)
+#   GOOGLE_REFRESH_TOKEN    tools/mint-refresh-token 으로 1회 발급
+#   GEMINI_API_KEY          Gemini API 키
+#   RUN_TOKEN               POST /run 인증용 임의 문자열

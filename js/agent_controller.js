@@ -5,7 +5,8 @@
 const _consoleElId = 'agent-console';
 
 function renderAgentTab() {
-  _writeConsoleLog('[대시보드] 브라우저 단독 실행형 에이전트 관제 화면으로 전환되었습니다.');
+  const mode = (GACHANGI_CONFIG.AGENT_WORKER_URL || '').trim() ? '무인 Worker' : '브라우저 로컬';
+  _writeConsoleLog(`[대시보드] 에이전트 관제 화면으로 전환되었습니다. (실행 모드: ${mode})`);
   _updateConnectionStatus();
 }
 
@@ -896,6 +897,56 @@ async function saveLogToServer() {
   _writeConsoleLog('💾 에이전트 로그가 브라우저 콘솔에 기록되었습니다. 로그를 보존하려면 [로그 다운로드] 버튼을 이용해 주세요.');
 }
 
+// ─── 무인 Worker 연동: '즉시 실행' 버튼이 Worker POST /run 을 호출 ───
+async function triggerWorkerRun() {
+  const base = (GACHANGI_CONFIG.AGENT_WORKER_URL || '').replace(/\/+$/, '');
+  const token = GACHANGI_CONFIG.AGENT_RUN_TOKEN || '';
+  const triggerBtn = document.getElementById('agent-trigger-btn');
+
+  _writeConsoleLog('☁️ 무인 에이전트(Worker)에 실행을 요청합니다...');
+  if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = '⚡ Worker 요청 중...'; }
+
+  try {
+    const res = await fetch(`${base}/run`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    });
+
+    if (res.status === 401) {
+      _writeConsoleLog('❌ 인증 실패(401): config의 AGENT_RUN_TOKEN이 Worker의 RUN_TOKEN과 일치하는지 확인하세요.');
+      showToast('❌ Worker 인증 실패', 'error');
+      return;
+    }
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      _writeConsoleLog(`❌ Worker 요청 실패 (${res.status}): ${t}`);
+      showToast('❌ Worker 요청 실패', 'error');
+      return;
+    }
+
+    const data = await res.json().catch(() => ({}));
+    _writeConsoleLog(`✅ ${data.message || 'Worker 실행 요청을 보냈습니다.'}`);
+    _writeConsoleLog('ℹ️ 상세 처리 로그는 Cloudflare Worker 로그(wrangler tail)에 기록됩니다.');
+    _writeConsoleLog('🔄 처리 완료 후 새로고침하면 시트 반영 결과를 확인할 수 있습니다.');
+    showToast('☁️ 무인 에이전트 실행을 시작했습니다.');
+  } catch (e) {
+    _writeConsoleLog(`❌ Worker 호출 오류: ${e.message} (Worker URL/CORS/네트워크 확인)`);
+    showToast('❌ Worker 호출 오류', 'error');
+  } finally {
+    if (triggerBtn) { triggerBtn.disabled = false; triggerBtn.textContent = '⚡ 즉시 동기화 실행'; }
+  }
+}
+
+// AGENT_WORKER_URL 설정 시 Worker 호출, 없으면 기존 로컬 runAgentSync 폴백(비파괴 전환)
+async function onAgentTrigger() {
+  const url = (GACHANGI_CONFIG.AGENT_WORKER_URL || '').trim();
+  if (url) {
+    await triggerWorkerRun();
+  } else {
+    await runAgentSync();
+  }
+}
+
 // ─── 이벤트 리스너 바인딩 ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   const triggerBtn = document.getElementById('agent-trigger-btn');
@@ -904,7 +955,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearYellowBtn = document.getElementById('agent-clear-yellow-btn');
   const downloadLogBtn = document.getElementById('download-agent-log-btn');
 
-  if (triggerBtn) triggerBtn.addEventListener('click', runAgentSync);
+  if (triggerBtn) triggerBtn.addEventListener('click', onAgentTrigger);
   if (rollbackBtn) rollbackBtn.addEventListener('click', rollbackSessionTransactions);
   if (clearYellowBtn) clearYellowBtn.addEventListener('click', bulkDeleteAllYellowRows);
   if (downloadLogBtn) downloadLogBtn.addEventListener('click', downloadAgentLogs);

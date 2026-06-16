@@ -39,4 +39,9 @@ const GACHANGI_CONFIG = {
 
   // 월 시트 이름 패턴
   MONTH_NAMES: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+
+  // 무인 에이전트 Worker 연동 (Cloudflare Cron Worker)
+  // 이 값이 설정되면 '즉시 실행' 버튼이 로컬 runAgentSync 대신 Worker POST /run 을 호출한다.
+  AGENT_WORKER_URL: '',  // 예: 'https://gachangi-agent-worker.<sub>.workers.dev'
+  AGENT_RUN_TOKEN: '',   // Worker secret RUN_TOKEN 과 동일한 값
 };
