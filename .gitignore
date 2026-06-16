@@ -14,3 +14,6 @@ transactions.json
 # Cloudflare Pages 배포 산출물/캐시 (public 은 루트 소스의 배포용 복사본)
 .wrangler/
 public/
+
+# Worker 빌드 산출물
+worker/dist/

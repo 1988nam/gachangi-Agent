@@ -42,41 +42,40 @@ node tools/mint-refresh-token/mint.mjs
 ```
 브라우저 동의 후 터미널에 출력된 `refresh_token` 을 복사.
 
-### 3) KV 네임스페이스 생성
-```powershell
-cd worker
-npm install
-wrangler kv namespace create STATE
-```
-출력된 `id` 를 `wrangler.toml` 의 `[[kv_namespaces]] id` 에 붙여넣기.
+### 3) KV 네임스페이스 — 이미 생성됨
+`wrangler.toml` 에 id(`6dcad074…`)가 반영되어 있다. (다시 만들 땐 `wrangler kv namespace create STATE` 후 id 교체)
 
-### 4) 설정값 + 비밀값 등록
-`wrangler.toml` 의 `[vars]` 에 `SPREADSHEET_ID`, `SOURCE/ARCHIVE/FAIL_FOLDER_ID` 채우기.
-(가챙이 `js/config.js` 에 있던 값과 동일)
+### 4) 설정값 + 비밀값 등록 (재배포 불필요)
+시트/폴더 ID와 비밀값을 모두 `wrangler secret put` 으로 등록한다. 값은 가챙이 `js/config.js` 와 동일.
+각 명령 실행 후 프롬프트에 값을 붙여넣으면 되고, 등록 즉시 적용된다(재배포 불필요).
 
 ```powershell
 cd worker
+wrangler secret put SPREADSHEET_ID
+wrangler secret put SOURCE_FOLDER_ID
+wrangler secret put ARCHIVE_FOLDER_ID
+wrangler secret put FAIL_FOLDER_ID
 wrangler secret put GOOGLE_CLIENT_ID
 wrangler secret put GOOGLE_CLIENT_SECRET
 wrangler secret put GOOGLE_REFRESH_TOKEN
 wrangler secret put GEMINI_API_KEY
-wrangler secret put RUN_TOKEN        # 브라우저 버튼 인증용 임의 문자열(직접 생성)
+wrangler secret put RUN_TOKEN          # POST /run 인증용 임의 문자열(직접 생성)
 ```
 
-### 5) 배포 & 점검
+### 5) 배포 & 점검 — 이미 1차 배포됨
+스켈레톤은 이미 배포되어 `https://gachangi-agent-worker.1988nam.workers.dev` 에서 동작한다(`/health` OK).
+secret 등록은 재배포 없이 즉시 반영되므로, 위 4)를 마친 뒤 바로 동작한다. 코드 수정 시에만 `wrangler deploy`.
+
 ```powershell
-cd worker
-wrangler deploy
-wrangler tail                        # 로그 실시간 확인(다른 터미널)
+wrangler tail   # 로그 실시간 확인(다른 터미널)
 ```
 ```powershell
 # 헬스 체크
-curl https://gachangi-agent-worker.<your-subdomain>.workers.dev/health
-# 수동 실행 (Phase 1: 라벨 조회 스모크 테스트)
-curl -X POST https://gachangi-agent-worker.<your-subdomain>.workers.dev/run `
-  -H "Authorization: Bearer <RUN_TOKEN>"
+curl https://gachangi-agent-worker.1988nam.workers.dev/health
+# 수동 실행
+curl -X POST https://gachangi-agent-worker.1988nam.workers.dev/run -H "Authorization: Bearer <RUN_TOKEN>"
 ```
-`wrangler tail` 로그에 `📬 Gmail 라벨 N개 조회 성공` 이 보이면 인증·스코프 OK.
+`wrangler tail` 로그에 `📬 Gmail 라벨` / `📎 첨부 적재` / `💾 N월 기록` 이 보이면 정상.
 
 ### 6) GScript 폐기 (Phase 2~3 검증 완료 후)
 이 Worker가 Gmail→Drive 적재를 대체하므로, 기존 Apps Script의 **시간 트리거를 비활성화**.
