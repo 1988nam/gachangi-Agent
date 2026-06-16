@@ -122,7 +122,7 @@ export function buildPromptForSource(mimeType, fileName) {
 }
 
 /** Gemini 구조화 호출. isText면 text 파트, 아니면 inlineData(base64) 파트. */
-export async function geminiParse(env, { promptText, isText, text, base64, mimeType }, onLog) {
+export async function geminiParse(env, token, { promptText, isText, text, base64, mimeType }, onLog) {
   const parts = [];
   if (isText) {
     parts.push({ text: `${promptText}\n\n[분석 대상 고지서/명세서 본문내용]\n${text}` });
@@ -131,14 +131,19 @@ export async function geminiParse(env, { promptText, isText, text, base64, mimeT
     parts.push({ inlineData: { mimeType, data: base64 } });
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+  // Vertex AI 엔드포인트(리전 고정) — generativelanguage의 요청 IP 지역제한(Cloudflare egress) 회피.
+  // API 키 대신 OAuth Bearer(cloud-platform 스코프) 인증 사용.
+  const project = env.VERTEX_PROJECT_ID;
+  const location = env.VERTEX_LOCATION || 'global';
+  const host = location === 'global' ? 'aiplatform.googleapis.com' : `${location}-aiplatform.googleapis.com`;
+  const url = `https://${host}/v1/projects/${project}/locations/${location}/publishers/google/models/gemini-2.5-flash:generateContent`;
   const res = await fetchWithRetry(
     url,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        contents: [{ parts }],
+        contents: [{ role: 'user', parts }],
         generationConfig: { responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
       }),
     },

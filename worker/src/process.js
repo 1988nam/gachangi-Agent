@@ -55,6 +55,7 @@ export async function processDriveFolder(env, token, out) {
       const prompt = buildPromptForSource(file.mimeType, file.name);
       const parsed = await geminiParse(
         env,
+        token,
         { promptText: prompt, isText, text: textContent, base64, mimeType: file.mimeType },
         out
       );

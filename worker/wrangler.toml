@@ -20,6 +20,9 @@ id = "6dcad0747d734239bfff934c3e594dce"
 GMAIL_SOURCE_LABEL = "가계부"
 GMAIL_DONE_LABEL = "가계부/처리완료"
 ALLOWED_ORIGIN = "*"   # 브라우저 '즉시 실행' 버튼 호출 출처. 배포 후 Pages 도메인으로 좁히는 것을 권장.
+# Vertex AI(Gemini) — generativelanguage 지역제한 회피용 리전 고정 엔드포인트
+VERTEX_PROJECT_ID = "gen-lang-client-0706834886"
+VERTEX_LOCATION = "global"
 
 # ── 아래 값은 `wrangler secret put <NAME>` 으로 등록 (재배포 불필요, wrangler.toml/Git에 두지 말 것) ──
 #   SPREADSHEET_ID          가계부 스프레드시트 ID

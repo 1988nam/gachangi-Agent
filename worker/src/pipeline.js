@@ -24,15 +24,27 @@ export async function runPipeline(env, trigger) {
 
   // ── Phase 2: Gmail '가계부' → Drive SOURCE 적재 ──
   // 적재 실패가 본 처리를 막지 않도록 격리(브라우저 파이프라인의 일시오류 철학 유지)
+  let ingest = { mails: 0, uploaded: 0 };
   try {
-    await ingestGmailToSource(env, token, out);
+    const r = await ingestGmailToSource(env, token, out);
+    if (r) ingest = r;
   } catch (e) {
     out(`⚠️ Gmail 적재 단계 오류(처리는 계속 진행): ${e.message}`);
   }
 
   // ── Phase 3: Drive SOURCE → Gemini → Sheets → ARCHIVE/FAIL ──
-  await processDriveFolder(env, token, out);
+  const proc = (await processDriveFolder(env, token, out)) || { ok: 0, fail: 0, added: 0, skipped: 0 };
 
   out('🏁 파이프라인 완료.');
-  return log;
+  return {
+    log,
+    summary: {
+      mails: ingest.mails || 0,
+      uploaded: ingest.uploaded || 0,
+      added: proc.added || 0,
+      skipped: proc.skipped || 0,
+      ok: proc.ok || 0,
+      fail: proc.fail || 0,
+    },
+  };
 }

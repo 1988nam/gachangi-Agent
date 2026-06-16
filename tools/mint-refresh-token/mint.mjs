@@ -25,6 +25,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/gmail.modify',
   'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/cloud-platform', // Vertex AI(Gemini) 호출용
 ].join(' ');
 
 if (!CLIENT_ID || !CLIENT_SECRET) {

@@ -28,6 +28,8 @@ const ConfigModal = (() => {
     document.getElementById('cfg-source-folder-id').value = cfg.SOURCE_FOLDER_ID || '';
     document.getElementById('cfg-archive-folder-id').value = cfg.ARCHIVE_FOLDER_ID || '';
     document.getElementById('cfg-fail-folder-id').value = cfg.FAIL_FOLDER_ID || '';
+    document.getElementById('cfg-agent-worker-url').value = cfg.AGENT_WORKER_URL || '';
+    document.getElementById('cfg-agent-run-token').value = cfg.AGENT_RUN_TOKEN || '';
 
     // Import/Export Area 초기화
     document.getElementById('cfg-import-export-area').value = '';
@@ -51,6 +53,8 @@ const ConfigModal = (() => {
       SOURCE_FOLDER_ID: document.getElementById('cfg-source-folder-id').value.trim(),
       ARCHIVE_FOLDER_ID: document.getElementById('cfg-archive-folder-id').value.trim(),
       FAIL_FOLDER_ID: document.getElementById('cfg-fail-folder-id').value.trim(),
+      AGENT_WORKER_URL: document.getElementById('cfg-agent-worker-url').value.trim(),
+      AGENT_RUN_TOKEN: document.getElementById('cfg-agent-run-token').value.trim(),
     };
 
     if (!config.CLIENT_ID || !config.API_KEY || !config.SPREADSHEET_ID || !config.GEMINI_API_KEY) {
@@ -77,6 +81,8 @@ const ConfigModal = (() => {
       SOURCE_FOLDER_ID: document.getElementById('cfg-source-folder-id').value.trim(),
       ARCHIVE_FOLDER_ID: document.getElementById('cfg-archive-folder-id').value.trim(),
       FAIL_FOLDER_ID: document.getElementById('cfg-fail-folder-id').value.trim(),
+      AGENT_WORKER_URL: document.getElementById('cfg-agent-worker-url').value.trim(),
+      AGENT_RUN_TOKEN: document.getElementById('cfg-agent-run-token').value.trim(),
     };
 
     try {
@@ -123,6 +129,8 @@ const ConfigModal = (() => {
       if (parsed.SOURCE_FOLDER_ID !== undefined) document.getElementById('cfg-source-folder-id').value = parsed.SOURCE_FOLDER_ID;
       if (parsed.ARCHIVE_FOLDER_ID !== undefined) document.getElementById('cfg-archive-folder-id').value = parsed.ARCHIVE_FOLDER_ID;
       if (parsed.FAIL_FOLDER_ID !== undefined) document.getElementById('cfg-fail-folder-id').value = parsed.FAIL_FOLDER_ID;
+      if (parsed.AGENT_WORKER_URL !== undefined) document.getElementById('cfg-agent-worker-url').value = parsed.AGENT_WORKER_URL;
+      if (parsed.AGENT_RUN_TOKEN !== undefined) document.getElementById('cfg-agent-run-token').value = parsed.AGENT_RUN_TOKEN;
 
       alert('📥 설정 코드가 정상적으로 분석되어 폼에 반영되었습니다. [설정 저장 및 새로고침] 버튼을 눌러 적용을 완료하세요.');
     } catch (err) {

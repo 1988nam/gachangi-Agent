@@ -39,6 +39,15 @@ export default {
       );
     }
 
+    if (url.pathname === '/logs' && request.method === 'GET') {
+      if (!isAuthorized(request, env)) {
+        return json({ error: 'unauthorized' }, 401, env);
+      }
+      let runs = [];
+      try { runs = (await env.STATE.get('run_history', { type: 'json' })) || []; } catch (_) {}
+      return json({ ok: true, runs }, 200, env);
+    }
+
     return json({ error: 'not found' }, 404, env);
   },
 };
@@ -52,13 +61,26 @@ async function safeRun(env, trigger) {
   }
   // 안전장치: 5분 뒤 자동 해제(크래시로 락이 남는 것 방지)
   await env.STATE.put('run_lock', String(Date.now()), { expirationTtl: 300 });
+  const at = new Date().toISOString();
   try {
-    await runPipeline(env, trigger);
+    const result = await runPipeline(env, trigger);
+    await recordRun(env, { at, trigger, ok: true, summary: result.summary, log: (result.log || []).slice(-80) });
   } catch (e) {
+    const msg = (e && e.message) || String(e);
     console.error(`❌ [${trigger}] 파이프라인 실패:`, (e && (e.stack || e.message)) || e);
+    await recordRun(env, { at, trigger, ok: false, error: msg, log: [] });
   } finally {
     await env.STATE.delete('run_lock');
   }
+}
+
+/** 실행 이력을 KV에 최근 30개 저장 (앱의 GET /logs 조회용 — 무인 실행 관측성 확보) */
+async function recordRun(env, entry) {
+  let hist = [];
+  try { hist = (await env.STATE.get('run_history', { type: 'json' })) || []; } catch (_) {}
+  hist.unshift(entry);
+  hist = hist.slice(0, 30);
+  try { await env.STATE.put('run_history', JSON.stringify(hist)); } catch (_) {}
 }
 
 function isAuthorized(request, env) {

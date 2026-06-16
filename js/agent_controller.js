@@ -5,9 +5,11 @@
 const _consoleElId = 'agent-console';
 
 function renderAgentTab() {
-  const mode = (GACHANGI_CONFIG.AGENT_WORKER_URL || '').trim() ? '무인 Worker' : '브라우저 로컬';
-  _writeConsoleLog(`[대시보드] 에이전트 관제 화면으로 전환되었습니다. (실행 모드: ${mode})`);
+  const isWorker = !!(GACHANGI_CONFIG.AGENT_WORKER_URL || '').trim();
+  _writeConsoleLog(`[대시보드] 에이전트 관제 화면으로 전환되었습니다. (실행 모드: ${isWorker ? '무인 Worker' : '브라우저 로컬'})`);
   _updateConnectionStatus();
+  // 무인 모드면 그동안 Worker가 처리한 이력을 자동으로 불러와 표시
+  if (isWorker) loadWorkerLogs();
 }
 
 function _writeConsoleLog(msg) {
@@ -947,6 +949,52 @@ async function onAgentTrigger() {
   }
 }
 
+// 무인 Worker의 처리 이력(KV)을 불러와 콘솔에 표시 — 무인 실행은 실시간 콘솔이 없으므로 '기록 조회'형.
+async function loadWorkerLogs() {
+  const base = (GACHANGI_CONFIG.AGENT_WORKER_URL || '').replace(/\/+$/, '');
+  const token = GACHANGI_CONFIG.AGENT_RUN_TOKEN || '';
+  if (!base) {
+    _writeConsoleLog('ℹ️ AGENT_WORKER_URL이 설정되지 않아 무인 처리 이력을 조회할 수 없습니다. (config.js 확인)');
+    return;
+  }
+
+  const consoleEl = document.getElementById(_consoleElId);
+  _writeConsoleLog('📜 Worker 처리 이력을 불러오는 중...');
+  try {
+    const res = await fetch(`${base}/logs`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      _writeConsoleLog(`⚠️ 이력 조회 실패 (${res.status}). RUN_TOKEN/URL을 확인하세요.`);
+      return;
+    }
+    const data = await res.json();
+    const runs = (data && data.runs) || [];
+
+    if (consoleEl) consoleEl.textContent = '';
+    if (runs.length === 0) {
+      _writeConsoleLog('(아직 Worker 실행 이력이 없습니다. cron 또는 [즉시 실행] 후 새로고침하세요.)');
+      return;
+    }
+
+    _writeConsoleLog(`📜 Worker 처리 이력 — 최근 ${runs.length}건 (최신순)`);
+    for (const r of runs) {
+      let t = '?';
+      try { t = r.at ? new Date(r.at).toLocaleString('ko-KR') : '?'; } catch (e) {}
+      if (r.ok === false || r.error) {
+        _writeConsoleLog(`\n■ [${t}] (${r.trigger}) ❌ 실패: ${r.error || '알 수 없음'}`);
+      } else {
+        const s = r.summary || {};
+        _writeConsoleLog(`\n■ [${t}] (${r.trigger}) 메일 ${s.mails || 0}건 · 적재 ${s.uploaded || 0} · 시트추가 ${s.added || 0} · 중복 ${s.skipped || 0} · 실패 ${s.fail || 0}`);
+        for (const line of (r.log || [])) _writeConsoleLog('    ' + line);
+      }
+    }
+    _writeConsoleLog('\n📜 — 이력 끝 —');
+  } catch (e) {
+    _writeConsoleLog(`⚠️ 이력 조회 오류: ${e.message} (Worker URL/네트워크/CORS 확인)`);
+  }
+}
+
 // ─── 이벤트 리스너 바인딩 ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   const triggerBtn = document.getElementById('agent-trigger-btn');
@@ -954,8 +1002,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const rollbackBtn = document.getElementById('agent-rollback-btn');
   const clearYellowBtn = document.getElementById('agent-clear-yellow-btn');
   const downloadLogBtn = document.getElementById('download-agent-log-btn');
+  const refreshWorkerLogBtn = document.getElementById('refresh-worker-log-btn');
 
   if (triggerBtn) triggerBtn.addEventListener('click', onAgentTrigger);
+  if (refreshWorkerLogBtn) refreshWorkerLogBtn.addEventListener('click', loadWorkerLogs);
   if (rollbackBtn) rollbackBtn.addEventListener('click', rollbackSessionTransactions);
   if (clearYellowBtn) clearYellowBtn.addEventListener('click', bulkDeleteAllYellowRows);
   if (downloadLogBtn) downloadLogBtn.addEventListener('click', downloadAgentLogs);
