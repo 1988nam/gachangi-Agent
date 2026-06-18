@@ -969,15 +969,26 @@ async function loadWorkerLogs() {
       return;
     }
     const data = await res.json();
-    const runs = (data && data.runs) || [];
+    const allRuns = (data && data.runs) || [];
+
+    // 0건(아무 것도 처리하지 않은 성공) 실행은 노이즈이므로 숨긴다. 실패와 실제 처리 건만 표시.
+    const runs = allRuns.filter((r) => {
+      if (r.ok === false || r.error) return true; // 실패는 항상 노출
+      const s = r.summary || {};
+      return ((s.mails || 0) + (s.uploaded || 0) + (s.added || 0) + (s.skipped || 0) + (s.fail || 0)) > 0;
+    });
 
     if (consoleEl) consoleEl.textContent = '';
-    if (runs.length === 0) {
+    if (allRuns.length === 0) {
       _writeConsoleLog('(아직 Worker 실행 이력이 없습니다. cron 또는 [즉시 실행] 후 새로고침하세요.)');
       return;
     }
+    if (runs.length === 0) {
+      _writeConsoleLog('(최근 실행은 모두 처리할 항목이 없어(0건) 숨김 처리되었습니다.)');
+      return;
+    }
 
-    _writeConsoleLog(`📜 Worker 처리 이력 — 최근 ${runs.length}건 (최신순)`);
+    _writeConsoleLog(`📜 Worker 처리 이력 — 최근 ${runs.length}건 (최신순, 0건 실행 숨김)`);
     for (const r of runs) {
       let t = '?';
       try { t = r.at ? new Date(r.at).toLocaleString('ko-KR') : '?'; } catch (e) {}
