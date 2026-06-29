@@ -12,6 +12,17 @@ function parseNumber(v) {
   return parseInt(String(v).replace(/[^0-9-]/g, ''), 10) || 0;
 }
 
+/** 시트 날짜 일련번호(예: 46177)를 'MM/DD'로 복원.
+ *  'MM/DD'가 날짜로 자동 변환돼 숫자 서식으로 남으면 일련번호로 읽혀 중복판정이 깨진다(매 실행 재기록). */
+function normalizeSheetDate(raw) {
+  const v = (raw == null ? '' : String(raw)).trim();
+  if (!/^\d{5}$/.test(v)) return v; // 'MM/DD'·'YYYY-MM-DD' 등은 그대로
+  const d = new Date(Date.UTC(1899, 11, 30) + Number(v) * 86400000);
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${mm}/${dd}`;
+}
+
 /** 시트 제목 → sheetId 매핑 */
 export async function loadSheetMeta(token, spreadsheetId) {
   const fields = encodeURIComponent('sheets.properties(title,sheetId)');
@@ -44,7 +55,7 @@ export async function loadMonthData(token, spreadsheetId, monthName, startRow = 
   let lastValidDate = '';
 
   rows.forEach((cells, i) => {
-    const rawDate = (cells[0] || '').toString().trim();
+    const rawDate = normalizeSheetDate(cells[0]);
     const desc = (cells[1] || '').toString();
     const inc = parseNumber(cells[2]);
     const exp = parseNumber(cells[3]);
@@ -120,6 +131,59 @@ export async function addTransactionsBatch(token, spreadsheetId, sheetId, monthN
       body: JSON.stringify({ requests }),
     });
   }
+}
+
+/**
+ * 월 시트 A열(날짜)에 'mm/dd' 날짜 서식을 적용한다.
+ * 'MM/DD' 입력이 시트에서 날짜로 자동 변환되면서 셀이 일련번호(예: 46177)로 표시되던 것을,
+ * 값은 그대로 두고 표시 서식만으로 날짜 표시로 복원한다. 한 번 적용되면 영구 유지되고
+ * 이후 append 되는 행도 열 서식을 상속한다.
+ * 패턴은 'mm/dd' 고정 — formattedValue가 'MM/DD'로 유지돼 대시보드 표시·중복판정(MM/DD 문자열 비교)과 정합.
+ */
+export async function applyDateFormatToColumnA(token, spreadsheetId, sheetIds, { startRow = 4 } = {}) {
+  const ids = (sheetIds || []).filter((id) => id != null);
+  if (ids.length === 0) return;
+  const requests = ids.map((sheetId) => ({
+    repeatCell: {
+      // endRowIndex 생략 = 열 끝까지. 헤더(1~startRow-1)는 제외해 본문 날짜 행만 대상.
+      range: { sheetId, startRowIndex: startRow - 1, startColumnIndex: 0, endColumnIndex: 1 },
+      cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'mm/dd' } } },
+      fields: 'userEnteredFormat.numberFormat',
+    },
+  }));
+  await googleFetch(token, `${BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests }),
+  });
+}
+
+/**
+ * 신규 월 시트를 기존 월 시트(템플릿) 복제로 생성한다.
+ * 헤더·드롭다운(dataValidation)·열서식을 그대로 보존하고, 거래 영역(A~G)의 '값'만 비워 빈 월로 만든다.
+ * (월 시트 스키마는 A~G 고정이고 대시보드/요약은 웹앱이 클라이언트에서 계산하므로 A~G 값 비움은 안전.)
+ * 반환: 새 시트의 sheetId.
+ */
+export async function createMonthSheetFromTemplate(token, spreadsheetId, newTitle, templateSheetId, { startRow = 4 } = {}) {
+  const dup = await googleFetch(token, `${BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requests: [{ duplicateSheet: { sourceSheetId: templateSheetId, newSheetName: newTitle } }],
+    }),
+  });
+  const newSheetId = dup?.replies?.[0]?.duplicateSheet?.properties?.sheetId;
+  if (newSheetId == null) throw new Error('월 시트 복제 응답에 새 sheetId가 없습니다.');
+
+  // 거래 영역 값만 제거(서식·드롭다운 dataValidation은 clear 대상이 아니라 유지됨).
+  const clearRange = `${newTitle}!A${startRow}:G${startRow + 996}`;
+  await googleFetch(token, `${BASE}/${spreadsheetId}/values/${encodeURIComponent(clearRange)}:clear`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+
+  return newSheetId;
 }
 
 /** 카테고리 자가 교정 (js/sheets.js _normalizeCategory 이식) */

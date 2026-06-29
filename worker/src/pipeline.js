@@ -9,6 +9,7 @@
 import { getAccessToken } from './google-auth.js';
 import { ingestGmailToSource } from './ingest.js';
 import { processDriveFolder } from './process.js';
+import { loadSheetMeta, applyDateFormatToColumnA } from './sheets.js';
 
 export async function runPipeline(env, trigger) {
   const log = [];
@@ -21,6 +22,21 @@ export async function runPipeline(env, trigger) {
 
   const token = await getAccessToken(env);
   out('🔑 액세스 토큰 확보(refresh_token 교환) 완료');
+
+  // ── A열 날짜 서식 정규화(비치명적) ──
+  // 시트에 일련번호(예: 46177)로 굳어 보이던 날짜를 'mm/dd' 표시로 복원한다(값은 그대로, 서식만 적용).
+  // 매 실행 시 모든 월 시트에 멱등 적용 → 기존/신규 행 모두 즉시 날짜로 표시되고, 한 번 적용되면 영구 유지.
+  // 신규 메일이 없어도(처리 0건) 기존 데이터가 고쳐지도록 처리 단계와 무관하게 항상 수행한다.
+  try {
+    const meta = await loadSheetMeta(token, env.SPREADSHEET_ID);
+    const monthIds = Object.keys(meta).filter((t) => /^\d{1,2}월$/.test(t)).map((t) => meta[t]);
+    await applyDateFormatToColumnA(token, env.SPREADSHEET_ID, monthIds, {
+      startRow: parseInt(env.START_ROW || '4', 10),
+    });
+    out(`🗓️ 월 시트 ${monthIds.length}개 A열 날짜 서식(mm/dd) 적용 완료`);
+  } catch (e) {
+    out(`⚠️ A열 날짜 서식 적용 건너뜀(처리는 계속): ${e.message}`);
+  }
 
   // ── Phase 2: Gmail '가계부' → Drive SOURCE 적재 ──
   // 적재 실패가 본 처리를 막지 않도록 격리(브라우저 파이프라인의 일시오류 철학 유지)

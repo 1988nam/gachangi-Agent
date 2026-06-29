@@ -51,7 +51,7 @@ const SheetsAPI = (() => {
 
     rowData.forEach((row, i) => {
       const cells = row.values || [];
-      const rawDate = cells[colIndices.date]?.formattedValue || '';
+      const rawDate = _normalizeSheetDate(cells[colIndices.date]?.formattedValue);
       const desc = cells[colIndices.desc]?.formattedValue || '';
       
       let inc = 0;
@@ -155,6 +155,24 @@ const SheetsAPI = (() => {
   function _parseNumber(str) {
     if (!str) return 0;
     return parseInt(str.replace(/[^0-9-]/g, ''), 10) || 0;
+  }
+
+  /** 구글 시트 날짜 일련번호(예: 46177)를 'MM/DD'로 복원.
+   *  'MM/DD' 입력이 시트에서 날짜로 자동 변환됐는데 셀 서식이 숫자로 남으면
+   *  formattedValue가 '46177' 같은 일련번호로 내려온다(검토 큐에 숫자가 노출되던 원인). */
+  function _serialToDate(serial) {
+    // 1899-12-30을 0일로 하는 시트/엑셀 일련번호 체계
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000);
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    return `${mm}/${dd}`;
+  }
+
+  function _normalizeSheetDate(raw) {
+    const v = (raw || '').trim();
+    // 5자리 정수(시리얼 날짜: 약 1927~2173년 범위)만 변환 — 'MM/DD'·'YYYY-MM-DD' 등은 그대로 둔다.
+    if (/^\d{5}$/.test(v)) return _serialToDate(Number(v));
+    return v;
   }
 
   function _normalizeCategory(cat, desc) {

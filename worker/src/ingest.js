@@ -34,7 +34,11 @@ export async function ingestGmailToSource(env, token, out) {
   let mails = 0;
   let uploaded = 0;
 
-  for await (const ref of iterateMessages(token, { labelIds: [sourceLabelId] })) {
+  // 처리완료 라벨을 검색식으로 제외해 미처리 메일만 순회(처리완료 메일 전수 getMessage 방지).
+  // 라벨명이 어긋나도 아래 멱등 가드가 안전망이므로 무해하게 폴백된다.
+  const doneQ = env.GMAIL_DONE_LABEL ? `-label:${env.GMAIL_DONE_LABEL.replace(/\s+/g, '-')}` : undefined;
+
+  for await (const ref of iterateMessages(token, { labelIds: [sourceLabelId], q: doneQ })) {
     const msg = await getMessage(token, ref.id);
 
     // 멱등 가드: 이미 처리완료 라벨이 붙어 있으면 스킵
@@ -42,7 +46,7 @@ export async function ingestGmailToSource(env, token, out) {
     mails++;
 
     const payload = msg.payload || {};
-    const { attachments, bodies } = collectParts(payload);
+    const { attachments, bodies, inlineImages } = collectParts(payload);
     const subject = safeName(headerValue(payload, 'Subject'));
 
     let anyUploaded = false;
@@ -84,6 +88,26 @@ export async function ingestGmailToSource(env, token, out) {
         out(`📄 본문 적재: ${name} (${chosen.mimeType}, ${bytes.length}B)`);
       } catch (e) {
         out(`❌ 본문 적재 실패(${msg.id}): ${e.message}`);
+      }
+    } else if (inlineImages.length > 0) {
+      // 실첨부도 본문도 없을 때만 인라인 이미지(이미지 명세서 등)를 적재 — 로고로 인한 본문 스킵 회귀 방지.
+      for (const att of inlineImages) {
+        try {
+          const data = await getAttachmentData(token, msg.id, att.attachmentId);
+          const bytes = base64UrlToBytes(data);
+          const name = safeName(att.filename, 120) || `${subject}.bin`;
+          await uploadToFolder(token, {
+            folderId: env.SOURCE_FOLDER_ID,
+            name,
+            mimeType: att.mimeType,
+            bytes,
+          });
+          uploaded++;
+          anyUploaded = true;
+          out(`🖼️ 인라인 이미지 적재(본문 없음 폴백): ${name} (${att.mimeType}, ${bytes.length}B)`);
+        } catch (e) {
+          out(`❌ 인라인 이미지 적재 실패(${att.filename}): ${e.message}`);
+        }
       }
     } else {
       out(`⚠️ 메일 ${msg.id}: 첨부·본문 없음 — 건너뜀`);

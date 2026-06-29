@@ -152,7 +152,10 @@ export async function geminiParse(env, token, { promptText, isText, text, base64
 
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    throw new Error(`Gemini API 호출 실패: ${detail}`);
+    // status를 실어 보내 상위(process.js)가 일시(429/5xx)/영구(4xx) 오류를 정확히 분류하게 한다.
+    const err = new Error(`Gemini API 호출 실패 (${res.status}): ${detail}`);
+    err.status = res.status;
+    throw err;
   }
 
   const json = await res.json();
