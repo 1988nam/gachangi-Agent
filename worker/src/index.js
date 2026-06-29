@@ -65,20 +65,30 @@ export default {
       const s = last.summary || {};
       let lastCronAt = null;
       try { lastCronAt = await env.STATE.get('last_cron_at'); } catch (_) {}
+      const lastCronMs = lastCronAt ? new Date(lastCronAt).getTime() : 0;
       // 마지막 cron 실행이 20h 넘게 없으면 무인 가동 중단 의심(야간 최대 공백 14h 고려).
-      const stale = lastCronAt ? (Date.now() - new Date(lastCronAt).getTime() > 20 * 60 * 60 * 1000) : false;
-      const hasError = last.ok === false;
+      const stale = lastCronAt ? (Date.now() - lastCronMs > 20 * 60 * 60 * 1000) : false;
+      // 실패는 매 실행마다 기록되지만 0건 성공은 이력에 남기지 않는다(노이즈 억제). 그래서 옛
+      // 실패가 run_history[0]에 박힌 채 이후 (0건)성공이 그를 밀어내지 못해 비챙이에 stale 경보가
+      // 계속 울린다. 마지막 기록 실패 이후 cron이 더 돌았다면(lastCronAt가 충분히 나중) 그 사이
+      // 실행은 (0건)성공한 것 → 옛 실패는 해소된 것으로 본다.
+      const recordedError = last.ok === false;
+      const errorCleared = recordedError && lastCronMs > new Date(last.at).getTime() + 10 * 60 * 1000;
+      const hasError = recordedError && !errorCleared;
       const items = [
         `최근 실행: ${last.at} (${last.trigger})`,
         `신규 ${s.added || 0} / 중복 ${s.skipped || 0} / 실패 ${s.fail || 0}`,
       ];
       if (hasError) items.push(`오류: ${(last.error || '').slice(0, 120)}`);
+      else if (errorCleared) items.push(`이후 정상 실행 재개됨 (최근 점검 ${lastCronAt})`);
       return json({
         status: hasError ? 'error' : (s.fail > 0 || stale ? 'alert' : 'ok'),
         level: hasError || s.fail > 0 ? 'alert' : 'info',
         summary: hasError
           ? `가챙이 마지막 실행 실패: ${(last.error || '').slice(0, 80)}`
-          : `가챙이 정상 — 최근 신규 ${s.added || 0}건${s.fail ? `, 실패 ${s.fail}건` : ''}${stale ? ' · ⚠️실행 정체' : ''}`,
+          : errorCleared
+            ? `가챙이 정상 — 이전 실패 이후 정상 실행 재개됨`
+            : `가챙이 정상 — 최근 신규 ${s.added || 0}건${s.fail ? `, 실패 ${s.fail}건` : ''}${stale ? ' · ⚠️실행 정체' : ''}`,
         items,
       }, 200, env);
     }
