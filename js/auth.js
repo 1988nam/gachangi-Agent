@@ -98,6 +98,17 @@ const Auth = (() => {
           }
         }
       },
+      // 팝업 차단·창 닫힘 등은 callback이 아니라 여기로 온다. 무음 갱신(타이머 컨텍스트)은
+      // 사용자 제스처가 없어 팝업이 차단되기 쉬운데, 이때 _silentRefresh가 남으면 이후 수동
+      // 재로그인까지 silent 분기로 새어 로그인 화면에 갇힌다 → 반드시 플래그를 푼다.
+      error_callback: (err) => {
+        const wasSilent = _silentRefresh;
+        _silentRefresh = false;
+        console.warn('[Auth] 토큰 요청 실패:', (err && (err.type || err.message)) || err);
+        if (!wasSilent && typeof showToast === 'function') {
+          showToast('❌ Google 로그인 창이 열리지 않았습니다. 팝업 차단을 확인해 주세요.', 'error');
+        }
+      },
     });
     
     gisInited = true;
@@ -136,6 +147,8 @@ const Auth = (() => {
   /** 구글 로그인 창 호출 */
   function login() {
     if (tokenClient) {
+      // 수동 로그인은 항상 로그인 콜백(initApp)을 타야 한다 — 무음 갱신 실패 잔여 플래그 해제.
+      _silentRefresh = false;
       // 만료되지 않은 캐시 토큰이 없으므로 명시적으로 동의화면/로그인 창 띄움
       tokenClient.requestAccessToken({ prompt: 'consent' });
     } else {

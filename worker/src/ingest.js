@@ -50,6 +50,7 @@ export async function ingestGmailToSource(env, token, out) {
     const subject = safeName(headerValue(payload, 'Subject'));
 
     let anyUploaded = false;
+    let failedParts = 0; // 하나라도 실패하면 라벨을 미루고 다음 실행에 재시도(성공분은 중복판정이 걸러줌)
 
     if (attachments.length > 0) {
       for (const att of attachments) {
@@ -67,6 +68,7 @@ export async function ingestGmailToSource(env, token, out) {
           anyUploaded = true;
           out(`📎 첨부 적재: ${name} (${att.mimeType}, ${bytes.length}B)`);
         } catch (e) {
+          failedParts++;
           out(`❌ 첨부 적재 실패(${att.filename}): ${e.message}`);
         }
       }
@@ -87,6 +89,7 @@ export async function ingestGmailToSource(env, token, out) {
         anyUploaded = true;
         out(`📄 본문 적재: ${name} (${chosen.mimeType}, ${bytes.length}B)`);
       } catch (e) {
+        failedParts++;
         out(`❌ 본문 적재 실패(${msg.id}): ${e.message}`);
       }
     } else if (inlineImages.length > 0) {
@@ -106,6 +109,7 @@ export async function ingestGmailToSource(env, token, out) {
           anyUploaded = true;
           out(`🖼️ 인라인 이미지 적재(본문 없음 폴백): ${name} (${att.mimeType}, ${bytes.length}B)`);
         } catch (e) {
+          failedParts++;
           out(`❌ 인라인 이미지 적재 실패(${att.filename}): ${e.message}`);
         }
       }
@@ -113,13 +117,17 @@ export async function ingestGmailToSource(env, token, out) {
       out(`⚠️ 메일 ${msg.id}: 첨부·본문 없음 — 건너뜀`);
     }
 
-    // 하나라도 업로드됐을 때만 처리완료 라벨 (실패분은 다음 실행에 재시도)
-    if (anyUploaded) {
+    // 대상 전부가 업로드됐을 때만 처리완료 라벨. (버그수정) 과거엔 하나라도 성공하면 라벨을 붙여
+    // 첨부 2개 중 1개 실패 시 실패분이 영구 유실됐다. 라벨을 미루면 다음 실행에 메일 전체가
+    // 재적재되지만, 성공분 파일은 파싱 후 시트 중복판정으로 걸러지므로 안전(멱등).
+    if (anyUploaded && failedParts === 0) {
       try {
         await addLabels(token, msg.id, [doneLabelId]);
       } catch (e) {
         out(`⚠️ 처리완료 라벨 부착 실패(${msg.id}): ${e.message} — 다음 실행에 중복 적재될 수 있음`);
       }
+    } else if (anyUploaded && failedParts > 0) {
+      out(`⚠️ 메일 ${msg.id}: ${failedParts}개 적재 실패 — 처리완료 라벨 보류(다음 실행 재시도)`);
     }
   }
 

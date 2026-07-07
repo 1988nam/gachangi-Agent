@@ -157,6 +157,13 @@ const SheetsAPI = (() => {
     return parseInt(str.replace(/[^0-9-]/g, ''), 10) || 0;
   }
 
+  /** USER_ENTERED 기록 시 '='·'+'로 시작하는 문자열(상호명 등)이 수식으로 실행되지 않게
+   *  선행 어포스트로피를 붙인다(시트에는 텍스트로 저장·표시, formattedValue에는 미노출). */
+  function _sheetSafeText(s) {
+    const v = s == null ? '' : String(s);
+    return /^[=+]/.test(v) ? "'" + v : v;
+  }
+
   /** 구글 시트 날짜 일련번호(예: 46177)를 'MM/DD'로 복원.
    *  'MM/DD' 입력이 시트에서 날짜로 자동 변환됐는데 셀 서식이 숫자로 남으면
    *  formattedValue가 '46177' 같은 일련번호로 내려온다(검토 큐에 숫자가 노출되던 원인). */
@@ -300,7 +307,7 @@ const SheetsAPI = (() => {
 
     const values = itemsData.map(item => [
       item.date || '-',
-      item.desc || '',
+      _sheetSafeText(item.desc || ''),
       item.inc || 0,
       item.exp || 0,
       '', // Column E
@@ -433,7 +440,7 @@ const SheetsAPI = (() => {
       const row = up.rowIndex;
 
       if (up.date !== undefined) data.push({ range: `${monthName}!A${row}`, values: [[up.date]] });
-      if (up.desc !== undefined) data.push({ range: `${monthName}!B${row}`, values: [[up.desc]] });
+      if (up.desc !== undefined) data.push({ range: `${monthName}!B${row}`, values: [[_sheetSafeText(up.desc)]] });
       if (up.inc !== undefined) data.push({ range: `${monthName}!C${row}`, values: [[up.inc]] });
       if (up.exp !== undefined) data.push({ range: `${monthName}!D${row}`, values: [[up.exp]] });
       if (up.cat !== undefined) data.push({ range: `${monthName}!F${row}`, values: [[up.cat]] });
@@ -584,12 +591,13 @@ const SheetsAPI = (() => {
     for (const month of futureMonths) {
       const target = allData.find(t => _matchesFixed(t, month));
       if (target) {
-        const finalInc = (data.cat === '수입' || target.cat === '수입') ? target.inc : data.inc;
+        // (버그수정) 과거: 고정 '수입' 항목은 미래 월에 옛 금액(target.inc)을 유지한 채 나머지
+        // 필드만 덮어써 금액 수정이 전파되지 않았다. 수정된 금액을 그대로 전파한다.
         if (!updatesByMonth[month]) updatesByMonth[month] = [];
         updatesByMonth[month].push({
           rowIndex: target.rowIndex,
           desc: data.desc,
-          inc: finalInc,
+          inc: data.inc || 0,
           exp: data.exp || 0,
           cat: data.cat,
           method: data.method,
@@ -858,11 +866,9 @@ const SheetsAPI = (() => {
   async function saveBudgets(budgets) {
     await _ensureBudgetSheet();
     const entries = Object.entries(budgets || {}).filter(([c]) => c && c.trim());
-    // 기존 값 전체 비우고 재작성(삭제된 항목 반영)
-    await gapi.client.sheets.spreadsheets.values.clear({
-      spreadsheetId: cfg.SPREADSHEET_ID,
-      range: `${BUDGET_SHEET}!A2:B1000`,
-    });
+    // (버그수정) 과거 clear-then-write는 clear 성공 후 update 실패(네트워크/토큰 만료) 시
+    // 예산 시트가 통째로 비고, 다음 시작 때 syncFromSheet가 빈 값을 localStorage까지 덮어써
+    // 모든 기기에서 예산이 소실됐다. → 먼저 덮어쓰고, 남는 아래 행(삭제분)만 비운다.
     if (entries.length > 0) {
       await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: cfg.SPREADSHEET_ID,
@@ -871,6 +877,10 @@ const SheetsAPI = (() => {
         resource: { values: entries.map(([cat, amt]) => [cat, amt]) },
       });
     }
+    await gapi.client.sheets.spreadsheets.values.clear({
+      spreadsheetId: cfg.SPREADSHEET_ID,
+      range: `${BUDGET_SHEET}!A${2 + entries.length}:B1000`,
+    });
     return { success: true };
   }
 

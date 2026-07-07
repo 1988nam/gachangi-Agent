@@ -107,6 +107,20 @@ function initAddForm(getCurrentMonth, onAdded) {
           return;
         }
 
+        // 월 선택 기본값이 '지난달'인데 날짜 폼 기본값은 오늘이라, 그대로 저장하면
+        // 오늘 거래가 전월(연말엔 전년 12월) 시트에 들어간다 → 월이 다르면 저장 전 확인.
+        if (date !== '-') {
+          const sheetM = parseInt((month.match(/(\d+)월/) || [])[1], 10);
+          const dateM  = parseInt((date.match(/^(\d{1,2})[\/.\-]/) || [])[1], 10);
+          if (sheetM && dateM && sheetM !== dateM) {
+            const go = confirm(
+              `입력한 날짜(${date})는 ${dateM}월 거래인데, 현재 선택된 시트는 [${month}]입니다.\n` +
+              `그래도 [${month}] 시트에 기록할까요?\n(취소 후 상단 월 선택 또는 날짜를 수정할 수 있습니다.)`
+            );
+            if (!go) return;
+          }
+        }
+
         if (date === '-') {
           // 고정비 모드인 경우 미래 월까지 일괄 전파 추가 API 호출
           await SheetsAPI.addFixedExpense(month, {

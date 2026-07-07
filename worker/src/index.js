@@ -77,7 +77,7 @@ export default {
       const hasError = recordedError && !errorCleared;
       const items = [
         `최근 실행: ${last.at} (${last.trigger})`,
-        `신규 ${s.added || 0} / 중복 ${s.skipped || 0} / 실패 ${s.fail || 0}`,
+        `신규 ${s.added || 0} / 중복 ${s.skipped || 0} / 실패 ${s.fail || 0}${s.held ? ` / 보류 ${s.held}` : ''}`,
       ];
       if (hasError) items.push(`오류: ${(last.error || '').slice(0, 120)}`);
       else if (errorCleared) items.push(`이후 정상 실행 재개됨 (최근 점검 ${lastCronAt})`);
@@ -88,7 +88,7 @@ export default {
           ? `가챙이 마지막 실행 실패: ${(last.error || '').slice(0, 80)}`
           : errorCleared
             ? `가챙이 정상 — 이전 실패 이후 정상 실행 재개됨`
-            : `가챙이 정상 — 최근 신규 ${s.added || 0}건${s.fail ? `, 실패 ${s.fail}건` : ''}${stale ? ' · ⚠️실행 정체' : ''}`,
+            : `가챙이 정상 — 최근 신규 ${s.added || 0}건${s.fail ? `, 실패 ${s.fail}건` : ''}${s.held ? `, 보류 ${s.held}건` : ''}${stale ? ' · ⚠️실행 정체' : ''}`,
         items,
       }, 200, env);
     }
@@ -99,35 +99,45 @@ export default {
 
 /** 동시 실행 방지 락(KV) + 안전 래퍼. KV는 최종 일관성이라 단일 사용자 저빈도에 한해 충분. */
 async function safeRun(env, trigger) {
-  // 무인 가동 liveness: 0건 실행도 포함해 매 트리거마다 기록(풀 상태의 '정체' 판정용).
-  try { await env.STATE.put('last_cron_at', new Date().toISOString()); } catch (_) {}
   const existing = await env.STATE.get('run_lock');
   if (existing) {
     console.log(`⏭️ [${trigger}] 다른 실행이 진행 중 — 이번 트리거는 건너뜁니다.`);
     return;
   }
-  // 안전장치: 5분 뒤 자동 해제(크래시로 락이 남는 것 방지)
-  await env.STATE.put('run_lock', String(Date.now()), { expirationTtl: 300 });
+  // 안전장치: 15분 뒤 자동 해제(크래시로 락이 남는 것 방지).
+  // 재시도 백오프 포함 실행이 5분을 넘길 수 있어(파일당 최대 ~62초), 도중 만료 → 동시 실행
+  // → 이중 기록이 되지 않도록 여유를 둔다.
+  await env.STATE.put('run_lock', String(Date.now()), { expirationTtl: 900 });
   const at = new Date().toISOString();
   try {
     const result = await runPipeline(env, trigger);
+    // liveness는 파이프라인 '완주' 후에만 기록. (버그수정) 과거엔 실행 '시작' 시 무조건 기록해,
+    // 파이프라인이 매번 죽거나 수집이 완전히 멈춰도 stale 판정·오류 자동해소가 '정상'으로 오판했다.
+    try { await env.STATE.put('last_cron_at', new Date().toISOString()); } catch (_) {}
     // 0건(아무 것도 처리하지 않은 성공) 실행은 노이즈이므로 이력에 남기지 않는다.
-    // → '최근 N건'이 실제 처리/실패가 있었던 실행으로만 채워진다.
+    // 단, 보류(held)와 Gmail 적재 오류는 '조용한 실패'이므로 반드시 기록한다.
     const s = result.summary || {};
-    const processed = (s.mails || 0) + (s.uploaded || 0) + (s.added || 0) + (s.skipped || 0) + (s.fail || 0);
-    if (processed > 0) {
-      await recordRun(env, { at, trigger, ok: true, summary: s, log: (result.log || []).slice(-80) });
+    const processed = (s.mails || 0) + (s.uploaded || 0) + (s.added || 0) + (s.skipped || 0) + (s.fail || 0) + (s.held || 0);
+    if (s.ingestError || processed > 0) {
+      const entry = { at, trigger, ok: !s.ingestError, summary: s, log: (result.log || []).slice(-80) };
+      if (s.ingestError) entry.error = `Gmail 적재 실패: ${s.ingestError}`;
+      await recordRun(env, entry);
       const items = [];
       if (s.added) items.push(`신규 ${s.added}건`);
       if (s.skipped) items.push(`중복 ${s.skipped}건`);
+      if (s.held) items.push(`보류 ${s.held}건`);
       if (s.fail) items.push(`실패 ${s.fail}건`);
       if (s.mails) items.push(`메일 ${s.mails}건`);
       await notifyBichangi(env, {
-        level: s.fail > 0 ? 'alert' : 'info',
-        title: s.fail > 0
-          ? `가챙이: 처리 실패 ${s.fail}건 (확인 필요)`
-          : `가챙이: 신규 거래 ${s.added || 0}건 기록`,
-        detail: `[${trigger}] 가계부 자동 기록`,
+        level: (s.ingestError || s.fail > 0) ? 'alert' : 'info',
+        title: s.ingestError
+          ? '가챙이: Gmail 적재 실패 (확인 필요)'
+          : s.fail > 0
+            ? `가챙이: 처리 실패 ${s.fail}건 (확인 필요)`
+            : (s.held > 0 && !s.added)
+              ? `가챙이: ${s.held}건 보류 — 다음 실행 재시도`
+              : `가챙이: 신규 거래 ${s.added || 0}건 기록`,
+        detail: s.ingestError ? s.ingestError.slice(0, 300) : `[${trigger}] 가계부 자동 기록`,
         items,
       });
     } else {

@@ -22,7 +22,12 @@ export async function downloadFileBytes(token, fileId) {
   const res = await fetch(`${API}/files/${fileId}?alt=media`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(`Drive 다운로드 실패 (상태 ${res.status})`);
+  if (!res.ok) {
+    // status를 실어야 상위(process.js)가 403/5xx를 일시 오류로 분류한다(없으면 영구 오류 → FAIL 격리).
+    const err = new Error(`Drive 다운로드 실패 (상태 ${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
   return new Uint8Array(await res.arrayBuffer());
 }
 
@@ -52,7 +57,9 @@ export async function uploadToFolder(token, { folderId, name, mimeType, bytes })
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    throw new Error(`Drive 업로드 실패 (상태 ${res.status}): ${detail}`);
+    const err = new Error(`Drive 업로드 실패 (상태 ${res.status}): ${detail}`);
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }

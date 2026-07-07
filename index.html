@@ -468,7 +468,7 @@
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
           <div>
             <h3 class="card-title">🔍 검토 필요 항목 <span id="review-count" class="count-badge">0건</span></h3>
-            <p class="card-desc">노란색 배경 항목입니다. 분류를 확인하고 완료 처리하세요.</p>
+            <p class="card-desc">모든 월의 노란색 배경(검토 필요) 항목을 한 번에 보여줍니다. 분류를 확인하고 완료 처리하세요.</p>
           </div>
           <!-- 일괄 작업 컨트롤 바 -->
           <div id="review-batch-action-bar" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -482,6 +482,7 @@
             <thead>
               <tr>
                 <th style="width: 40px;"><input type="checkbox" id="review-check-all"></th>
+                <th style="width: 48px;">월</th>
                 <th>날짜</th>
                 <th>내용</th>
                 <th>수입</th>
@@ -621,6 +622,18 @@
               <button id="agent-rollback-btn" class="btn-primary" style="background: var(--color-warning); border-color: var(--color-warning); font-size: 11px; padding: 4px 8px; color: #000; width: 100%;">↩️ 세션 내역 롤백</button>
               <button id="agent-clear-yellow-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); font-size: 11px; padding: 4px 8px; width: 100%;">🚨 미검토 노란행 삭제</button>
             </div>
+          </div>
+        </div>
+
+        <div class="kpi-card glass">
+          <div class="kpi-icon">📷</div>
+          <div class="kpi-body" style="width: 100%;">
+            <div class="kpi-label">은행 입출금 캡쳐 업로드</div>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px; width: 100%;">
+              <button id="agent-upload-btn" class="btn-primary" style="font-size: 12px; padding: 6px 12px; width: 100%;">📷 은행 캡쳐 업로드</button>
+              <p style="font-size: 11px; color: var(--text-muted); margin: 2px 0 0; line-height: 1.4;">폰에서 찍은 은행 이체/출금 스크린샷을 올리면 자동으로 파싱해 검토 큐에 올립니다.</p>
+            </div>
+            <input type="file" id="agent-upload-input" accept="image/*" multiple style="display:none">
           </div>
         </div>
 

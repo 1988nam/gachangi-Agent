@@ -12,6 +12,13 @@ function parseNumber(v) {
   return parseInt(String(v).replace(/[^0-9-]/g, ''), 10) || 0;
 }
 
+/** USER_ENTERED 기록 시 '='·'+'로 시작하는 문자열(상호명 등)이 수식으로 실행되지 않게
+ *  선행 어포스트로피를 붙인다(시트에는 텍스트로 저장·표시, 읽기 값에는 미노출). */
+function sheetSafeText(s) {
+  const v = s == null ? '' : String(s);
+  return /^[=+]/.test(v) ? "'" + v : v;
+}
+
 /** 시트 날짜 일련번호(예: 46177)를 'MM/DD'로 복원.
  *  'MM/DD'가 날짜로 자동 변환돼 숫자 서식으로 남으면 일련번호로 읽혀 중복판정이 깨진다(매 실행 재기록). */
 function normalizeSheetDate(raw) {
@@ -93,7 +100,7 @@ export async function addTransactionsBatch(token, spreadsheetId, sheetId, monthN
 
   const values = items.map((item) => [
     item.date || '-',
-    item.desc || '',
+    sheetSafeText(item.desc || ''),
     item.inc || 0,
     item.exp || 0,
     '', // E열(잔액 수식 영역) 비움
@@ -177,11 +184,24 @@ export async function createMonthSheetFromTemplate(token, spreadsheetId, newTitl
 
   // 거래 영역 값만 제거(서식·드롭다운 dataValidation은 clear 대상이 아니라 유지됨).
   const clearRange = `${newTitle}!A${startRow}:G${startRow + 996}`;
-  await googleFetch(token, `${BASE}/${spreadsheetId}/values/${encodeURIComponent(clearRange)}:clear`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: '{}',
-  });
+  try {
+    await googleFetch(token, `${BASE}/${spreadsheetId}/values/${encodeURIComponent(clearRange)}:clear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+  } catch (e) {
+    // clear가 실패한 채 시트가 남으면 전월 거래 복사본이 새 달 시트에 영구 잔존하고 재시도 경로도 없다.
+    // → 복제본을 삭제(롤백)해 다음 실행이 duplicate부터 다시 시도하게 한다.
+    try {
+      await googleFetch(token, `${BASE}/${spreadsheetId}:batchUpdate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: [{ deleteSheet: { sheetId: newSheetId } }] }),
+      });
+    } catch (_) { /* 롤백 실패 시에도 원 오류를 그대로 전파 */ }
+    throw e;
+  }
 
   return newSheetId;
 }

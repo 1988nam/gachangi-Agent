@@ -40,7 +40,14 @@ function _updateConnectionStatus() {
 }
 
 // ─── 코어 에이전트 실행 로직 ───────────────────────────────────────
+// 재진입 가드: 연속 클릭/업로드로 동시 실행되면 같은 SOURCE 파일이 두 번 파싱·기록된다.
+let _agentBusy = false;
+
 async function runAgentSync() {
+  if (_agentBusy) {
+    _writeConsoleLog('⏳ 이미 동기화가 진행 중입니다 — 완료 후 다시 실행해 주세요.');
+    return;
+  }
   if (!Auth.isLoggedIn()) {
     _writeConsoleLog('❌ 에러: Google 로그인이 되어있지 않습니다. 먼저 로그인해 주세요.');
     showToast('⚠️ Google 로그인이 필요합니다.', 'warning');
@@ -53,6 +60,7 @@ async function runAgentSync() {
     return;
   }
 
+  _agentBusy = true;
   _writeConsoleLog('🔍 [에이전트] 구글 드라이브 감시(수집 폴더 스캔) 시작...');
   const triggerBtn = document.getElementById('agent-trigger-btn');
   if (triggerBtn) {
@@ -223,26 +231,30 @@ async function runAgentSync() {
           item.cat = SheetsAPI.normalizeCategory(item.cat, item.desc);
           item.method = selfHealMethod(item.method, validMethods, file.name, isText ? textContent : '');
 
-          // 날짜 포맷 표준화 및 월 추출 (예: "2026-06-03" -> "06/03")
+          // 입금(inc>0)이 '수입' 외 분류로 오면 대시보드 읽기 로직이 지출로 뒤집어 표시한다 → 기록 전 강제 교정.
+          if ((Number(item.inc) || 0) > 0 && (Number(item.exp) || 0) === 0 && item.cat !== '수입') {
+            item.cat = '수입';
+          }
+
+          // 날짜 포맷 표준화 및 월 추출 (예: "2026-06-03"·"6.03"·"6월 3일" -> "06/03")
           let normalizedDate = (item.date || '').trim();
-          const dateMatch = normalizedDate.match(/^(?:\d{4}[-\/])?(\d{1,2})[-\/](\d{1,2})/);
+          const dateMatch = normalizedDate.match(/^(?:\d{4}[-\/.년]\s*)?(\d{1,2})[-\/.월]\s*(\d{1,2})/);
           if (dateMatch) {
             const mm = dateMatch[1].padStart(2, '0');
             const dd = dateMatch[2].padStart(2, '0');
             normalizedDate = `${mm}/${dd}`;
             item.date = normalizedDate;
           }
-          
-          let monthNum = normalizedDate.split('/')[0].replace(/^0/, '');
-          let parsedMonth = parseInt(monthNum, 10);
-          
+
+          let parsedMonth = parseInt(normalizedDate.split('/')[0], 10);
+
           // 월이 유효하지 않으면 시스템 현재 월로 폴백 방어
           if (isNaN(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) {
             parsedMonth = new Date().getMonth() + 1;
-            monthNum = String(parsedMonth);
-            item.date = `${monthNum.padStart(2, '0')}/01`;
+            item.date = `${String(parsedMonth).padStart(2, '0')}/01`;
           }
-          const sheetName = monthNum + '월';
+          // 시트명은 반드시 정수 월에서 유도 — 과거 "6.03" 같은 미매칭 날짜가 "6.03월" 쓰레기 시트를 만들었다.
+          const sheetName = parsedMonth + '월';
 
           // 해당 월 기존 데이터 캐시 로드
           if (!sheetDataCache[sheetName]) {
@@ -399,6 +411,7 @@ async function runAgentSync() {
     showToast('❌ 에이전트 실행 실패', 'error');
     await saveLogToServer();
   } finally {
+    _agentBusy = false;
     if (triggerBtn) {
       triggerBtn.disabled = false;
       triggerBtn.textContent = '⚡ 즉시 동기화 실행';
@@ -717,25 +730,36 @@ function buildPromptForSource(mimeType, fileName) {
 
   if (isImage) {
     return `당신은 은행/카드 거래 내역 분석 전문가입니다.
-이미지는 은행 또는 결제 앱(토스, 카카오뱅크 등)의 이체 및 결제 완료 상세 스크린샷 이미지입니다.
-파일의 내용을 정확히 읽고 거래 내역 추출과 함께, 어떤 은행인지 혹은 결제앱인지 판별하여 직관적인 추천 파일명(recommendedFileName)을 생성해 주세요.
+제공된 이미지는 아래 둘 중 하나입니다.
+ (A) 은행/결제앱의 '입출금 내역 · 거래 내역 리스트' 스크린샷 — 여러 건이 목록/표로 나열됨
+ (B) 단건 이체/결제/출금 완료 상세 스크린샷 — 1건
+이미지를 정확히 읽어 모든 거래를 추출하고, 어떤 은행/결제앱인지 판별하여 추천 파일명(recommendedFileName)을 생성해 주세요.
+
+[⚠️ 가장 중요 — 누락 없이 전부 추출]
+1. 이미지에 보이는 거래 행을 맨 위부터 맨 아래까지 '하나도 빠짐없이' 추출하세요. 대표 몇 건만 뽑거나 개수를 임의로 줄이지 마세요.
+2. 금액이나 상대가 비슷해도 화면상 별개 행이면 각각 별도 항목으로 추출하세요(임의 병합 금지). 같은 날짜에 같은 금액이 여러 번 있어도 각각 추출하세요. 중복 정리는 시스템이 따로 처리합니다.
+3. 날짜 헤더(예: "6월 3일") 아래에 여러 건이 묶여 있으면 각 건에 그 헤더 날짜를 적용하세요.
+
+[입금 / 출금 구분 — 둘 다 추출]
+- 입금(받은 돈: '입금' 표시, + 부호, 파란색/녹색 등) → inc 에 절대값 정수, exp=0
+- 출금·이체·결제(나간 돈: '출금' 표시, - 부호, 빨간색 등) → exp 에 절대값 정수, inc=0
+- 원화기호(₩·원)·부호(+·-)·콤마는 떼고 정수만 넣으세요.
+- 잔액(잔고·남은금액·Balance)은 거래 금액이 아니므로 절대 포함하지 마세요.
+
+[날짜] 반드시 MM/DD. "6.03"·"6월 3일"·"06-03" → "06/03". 연도는 무시.
+[내용(desc)] 실제 이체/결제 상대 혹은 사용처 명칭을 그대로.
 
 [파일명 추천 규칙]
-1. 이체 및 출금 스크린샷 이미지인 경우: [출금은행 또는 결제수단]_[이체/결제/출금]_[날짜MMDD] 형식으로 지어주세요.
-   - 예: 우리은행 계좌출금 내역 스크린샷 -> "우리은행_계좌출금_0603"
-   - 예: 카카오페이 이체 스크린샷 -> "카카오뱅크_이체내역_0528"
-   - 예: 현대카드 결제 스크린샷 -> "현대카드_결제내역_0601"
-2. 확장자는 덧붙이지 마세요. (코드에서 자동 처리됩니다.)
+1. 리스트(A): [은행/결제수단]_입출금내역_[대표날짜MMDD] (예: "우리은행_입출금내역_0603")
+2. 단건(B): [출금은행 또는 결제수단]_[이체/결제/출금]_[날짜MMDD] (예: "카카오뱅크_이체내역_0528")
+3. 확장자는 붙이지 마세요. (코드에서 자동 처리됩니다.)
 
-[거래 내역 추출 규칙]
-1. 날짜: MM/DD 형식으로 추출 (예: "6.03" -> "06/03")
-2. desc(내용): 실제 이체/결제 상대 혹은 사용처 명칭 그대로 추출
-3. exp(지출): 마이너스 부호나 원화를 떼고 절대값 정수로 추출
-4. 잔액(계좌 잔고 등)은 거래 금액이 아니므로 완벽히 스킵
-5. 쿠팡 이체는 분류(cat)를 반드시 '생활비'로 설정하세요.
-6. 코스트코 결제는 method를 반드시 '현대카드'로 설정하세요.
-7. 양가 부모님 용돈, 어버이날 선물, 명절 세뱃돈, 가족 행사 모임비 등은 분류(cat)를 반드시 '가족'으로 설정하세요.
-8. ${methodGuide}`;
+[분류(cat)]
+- 입금(inc>0) 거래의 분류(cat)는 반드시 '수입'으로 설정하세요.
+- 쿠팡 이체/결제는 cat을 '생활비'로.
+- 코스트코 결제는 method를 '현대카드'로.
+- 양가 부모님 용돈, 어버이날 선물, 명절 세뱃돈, 가족 행사 모임비 등은 cat을 '가족'으로.
+${methodGuide}`;
   }
 
   return `당신은 가계부 정리 전문가 '가챙이'입니다.
@@ -899,6 +923,116 @@ async function saveLogToServer() {
   _writeConsoleLog('💾 에이전트 로그가 브라우저 콘솔에 기록되었습니다. 로그를 보존하려면 [로그 다운로드] 버튼을 이용해 주세요.');
 }
 
+// ─── 은행 캡쳐 이미지 업로드 → Drive SOURCE 직접 적재 → 즉시 처리 ───
+// 폰에서 찍은 은행 입출금 스크린샷을 Gmail을 거치지 않고 바로 큐(검토 큐)에 올리는 경로.
+// 클라이언트의 기존 Google 토큰(Drive 스코프)으로 SOURCE 폴더에 멀티파트 업로드한 뒤,
+// 기존 처리 트리거(onAgentTrigger: 무인 Worker면 /run, 아니면 로컬 runAgentSync)를 호출한다.
+// 업로드 파일은 파이프라인에서 이미지로 인식되어 파싱→중복판정→월시트에 노란(검토) 행으로 기록된다.
+let _uploadBusy = false; // 처리 완료 전 재업로드로 같은 파일이 이중 파싱·기록되는 것 방지
+
+async function uploadCaptureToSource(fileList) {
+  if (_uploadBusy || _agentBusy) {
+    _writeConsoleLog('⏳ 이전 업로드/동기화가 아직 처리 중입니다 — 완료 후 다시 시도해 주세요.');
+    showToast('⏳ 처리 중입니다. 잠시 후 다시 시도하세요.', 'warning');
+    return;
+  }
+  const files = Array.from(fileList || []).filter((f) => f && f.type && f.type.startsWith('image/'));
+  if (files.length === 0) {
+    _writeConsoleLog('⚠️ 이미지 파일이 없습니다. (지원: png/jpg/heic 등 image/*)');
+    showToast('⚠️ 이미지 파일을 선택하세요.', 'warning');
+    return;
+  }
+  if (!Auth.isLoggedIn()) {
+    _writeConsoleLog('❌ 에러: Google 로그인이 되어있지 않습니다. 먼저 로그인해 주세요.');
+    showToast('⚠️ Google 로그인이 필요합니다.', 'warning');
+    return;
+  }
+  const folderId = GACHANGI_CONFIG.SOURCE_FOLDER_ID;
+  if (!folderId || folderId.indexOf('YOUR_') === 0) {
+    _writeConsoleLog('❌ 에러: SOURCE_FOLDER_ID가 설정되지 않았습니다. (config.js 확인)');
+    showToast('⚠️ 수집 폴더 설정을 확인하세요.', 'warning');
+    return;
+  }
+
+  _uploadBusy = true;
+  const uploadBtn = document.getElementById('agent-upload-btn');
+  if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.textContent = '📷 업로드 중...'; }
+
+  try {
+    _writeConsoleLog(`📷 은행 캡쳐 ${files.length}장 업로드 시작 → 수집 폴더(SOURCE)`);
+    const token = gapi.client.getToken().access_token;
+    let uploaded = 0;
+
+    for (const file of files) {
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const mimeType = file.type || 'image/jpeg';
+        // 파일명이 겹치지 않게 타임스탬프 접두(워커가 recommendedFileName으로 rename하므로 임시명이어도 무방).
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const safeBase = (file.name || 'capture').replace(/[\\/:*?"<>|\r\n]/g, '_').slice(0, 60);
+        const name = `bank_${stamp}_${safeBase}`;
+        await _driveMultipartUpload(token, { folderId, name, mimeType, bytes });
+        uploaded++;
+        _writeConsoleLog(`  ✅ 적재: ${name} (${mimeType}, ${bytes.length}B)`);
+      } catch (e) {
+        _writeConsoleLog(`  ❌ 업로드 실패(${file.name}): ${e.message}`);
+      }
+    }
+
+    if (uploaded === 0) {
+      showToast('❌ 업로드된 이미지가 없습니다.', 'error');
+      return;
+    }
+
+    if (uploadBtn) uploadBtn.textContent = '📷 큐 처리 중...';
+    _writeConsoleLog(`📦 ${uploaded}장 적재 완료. 이어서 파싱/기록을 실행합니다...`);
+    showToast(`📷 ${uploaded}장 업로드 완료 — 큐 처리를 시작합니다.`);
+    // 적재 직후 곧바로 처리 트리거(무인 Worker면 /run, 아니면 로컬). 완료 후 검토 큐에 노란 행 반영.
+    // 버튼은 처리까지 끝난 뒤에 복구해 처리 도중 재업로드(이중 기록)를 막는다.
+    await onAgentTrigger();
+  } finally {
+    _uploadBusy = false;
+    if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.textContent = '📷 은행 캡쳐 업로드'; }
+  }
+}
+
+/** Drive multipart 업로드(클라이언트) — worker/src/drive.js:uploadToFolder의 브라우저 이식. */
+async function _driveMultipartUpload(token, { folderId, name, mimeType, bytes }) {
+  const rand = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+  const boundary = '----gachangi' + rand;
+  const meta = { name, mimeType, parents: [folderId] };
+  const enc = new TextEncoder();
+  const head = enc.encode(
+    `--${boundary}\r\n` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    `${JSON.stringify(meta)}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: ${mimeType}\r\n\r\n`
+  );
+  const tail = enc.encode(`\r\n--${boundary}--\r\n`);
+  const body = new Uint8Array(head.length + bytes.length + tail.length);
+  body.set(head, 0);
+  body.set(bytes, head.length);
+  body.set(tail, head.length + bytes.length);
+
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,parents',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Drive 업로드 실패 (상태 ${res.status}): ${detail}`);
+  }
+  return res.json();
+}
+
 // ─── 무인 Worker 연동: '즉시 실행' 버튼이 Worker POST /run 을 호출 ───
 async function triggerWorkerRun() {
   const base = (GACHANGI_CONFIG.AGENT_WORKER_URL || '').replace(/\/+$/, '');
@@ -975,7 +1109,7 @@ async function loadWorkerLogs() {
     const runs = allRuns.filter((r) => {
       if (r.ok === false || r.error) return true; // 실패는 항상 노출
       const s = r.summary || {};
-      return ((s.mails || 0) + (s.uploaded || 0) + (s.added || 0) + (s.skipped || 0) + (s.fail || 0)) > 0;
+      return ((s.mails || 0) + (s.uploaded || 0) + (s.added || 0) + (s.skipped || 0) + (s.fail || 0) + (s.held || 0)) > 0;
     });
 
     if (consoleEl) consoleEl.textContent = '';
@@ -996,7 +1130,7 @@ async function loadWorkerLogs() {
         _writeConsoleLog(`\n■ [${t}] (${r.trigger}) ❌ 실패: ${r.error || '알 수 없음'}`);
       } else {
         const s = r.summary || {};
-        _writeConsoleLog(`\n■ [${t}] (${r.trigger}) 메일 ${s.mails || 0}건 · 적재 ${s.uploaded || 0} · 시트추가 ${s.added || 0} · 중복 ${s.skipped || 0} · 실패 ${s.fail || 0}`);
+        _writeConsoleLog(`\n■ [${t}] (${r.trigger}) 메일 ${s.mails || 0}건 · 적재 ${s.uploaded || 0} · 시트추가 ${s.added || 0} · 중복 ${s.skipped || 0} · 실패 ${s.fail || 0}${s.held ? ` · 보류 ${s.held}` : ''}`);
         for (const line of (r.log || [])) _writeConsoleLog('    ' + line);
       }
     }
@@ -1015,8 +1149,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const downloadLogBtn = document.getElementById('download-agent-log-btn');
   const refreshWorkerLogBtn = document.getElementById('refresh-worker-log-btn');
 
+  const uploadBtn = document.getElementById('agent-upload-btn');
+  const uploadInput = document.getElementById('agent-upload-input');
+
   if (triggerBtn) triggerBtn.addEventListener('click', onAgentTrigger);
   if (refreshWorkerLogBtn) refreshWorkerLogBtn.addEventListener('click', loadWorkerLogs);
+  if (uploadBtn && uploadInput) {
+    uploadBtn.addEventListener('click', () => uploadInput.click());
+    uploadInput.addEventListener('change', (e) => {
+      uploadCaptureToSource(e.target.files);
+      e.target.value = ''; // 같은 파일을 다시 선택해도 change가 발화되도록 초기화
+    });
+  }
   if (rollbackBtn) rollbackBtn.addEventListener('click', rollbackSessionTransactions);
   if (clearYellowBtn) clearYellowBtn.addEventListener('click', bulkDeleteAllYellowRows);
   if (downloadLogBtn) downloadLogBtn.addEventListener('click', downloadAgentLogs);

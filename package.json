@@ -5,7 +5,12 @@
   "main": "agent_server.js",
   "scripts": {
     "start": "node agent_server.js",
-    "dev": "nodemon agent_server.js"
+    "dev": "nodemon agent_server.js",
+    "sync:public": "node tools/sync-public.mjs",
+    "predeploy:pages": "npm run sync:public",
+    "deploy:pages": "wrangler pages deploy",
+    "deploy:worker": "wrangler deploy --config worker/wrangler.toml",
+    "deploy": "npm run deploy:worker && npm run deploy:pages"
   },
   "dependencies": {
     "@google/genai": "^0.2.0",

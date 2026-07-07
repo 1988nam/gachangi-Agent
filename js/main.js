@@ -150,7 +150,8 @@ function switchTab(tabId) {
     renderCategoryExpensesTab();
   } else if (tabId === 'review') {
     document.getElementById('page-title').textContent = '🔍 검토 큐';
-    renderReviewTab(_transactions, _currentMonth);
+    renderReviewTab();          // 캐시 기준 즉시 렌더(빠른 표시)
+    refreshReviewData();        // 모든 월 최신화 후 재렌더(정확성)
   } else if (tabId === 'transactions') {
     renderTransactionsTab(_transactions, _currentMonth);
   } else if (tabId === 'agent') {
@@ -195,6 +196,21 @@ function initMonthSelector() {
   });
 }
 
+// ─── 검토 배지(모든 월 누적 검토 필요 건수) ────────────
+function updateReviewBadge() {
+  let count = 0;
+  const data = _allMonthData || {};
+  for (const m of Object.keys(data)) {
+    count += (data[m] || []).filter(t => t.needsReview).length;
+  }
+  const badge = document.getElementById('review-badge');
+  if (badge) {
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+  }
+  return count;
+}
+
 // ─── 데이터 로딩 ───────────────────────────────────────
 async function loadCurrentMonth() {
   if (_isLoadingData || !_currentMonth) return;
@@ -205,13 +221,8 @@ async function loadCurrentMonth() {
     _transactions = await SheetsAPI.loadMonthData(_currentMonth);
     _allMonthData[_currentMonth] = _transactions; // 전역 월별 데이터 캐시에 저장하여 중복 로드 방지
 
-    // 검토 배지 업데이트
-    const reviewCount = _transactions.filter(t => t.needsReview).length;
-    const badge = document.getElementById('review-badge');
-    if (badge) {
-      badge.textContent = reviewCount;
-      badge.style.display = reviewCount > 0 ? 'inline-flex' : 'none';
-    }
+    // 검토 배지 업데이트(모든 월 누적 기준)
+    updateReviewBadge();
 
     // 현재 탭 리렌더링
     const activeTab = document.querySelector('.tab-panel.active')?.id?.replace('tab-', '');
@@ -236,9 +247,13 @@ async function loadAllMonths() {
         _allMonthData[m] = await SheetsAPI.loadMonthData(m);
       }
     } catch (e) {
-      _allMonthData[m] = [];
+      // 실패 월을 []로 캐시하면 연간 대시보드·추이 차트가 그 달을 조용히 누락한 채 확정된다.
+      // 캐시에 남기지 않아야 다음 loadAllMonths/탭 진입 때 재시도된다.
+      console.warn(`[전체 월 로드] ${m} 로드 실패 — 캐시 미기록, 다음에 재시도:`, e);
     }
   }
+  // 모든 월 로딩 후 검토 배지를 전체 누적 기준으로 갱신
+  updateReviewBadge();
   // 트렌드 차트 업데이트
   renderTrendChart(_allMonthData);
 }

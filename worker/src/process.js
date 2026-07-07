@@ -42,7 +42,7 @@ export async function processDriveFolder(env, token, out) {
   const templateTitle = Object.keys(meta).find((t) => /^\d{1,2}월$/.test(t));
   const templateId = templateTitle != null ? meta[templateTitle] : null;
 
-  let ok = 0, fail = 0, added = 0, skipped = 0;
+  let ok = 0, fail = 0, added = 0, skipped = 0, held = 0;
 
   for (const file of files) {
     out(`▶️ 처리: ${file.name} (${file.mimeType})`);
@@ -96,27 +96,38 @@ export async function processDriveFolder(env, token, out) {
         item.cat = normalizeCategory(item.cat, item.desc);
         item.method = selfHealMethod(item.method, DEFAULT_METHODS, file.name, isText ? textContent : '');
 
+        // 입금(inc>0)이 '수입' 외 분류로 오면 대시보드 읽기 로직이 지출로 뒤집어 표시한다 → 기록 전 강제 교정.
+        if ((Number(item.inc) || 0) > 0 && (Number(item.exp) || 0) === 0 && item.cat !== '수입') {
+          item.cat = '수입';
+        }
+
+        // "2026-06-03"·"6.03"·"6월 3일" 등 → "06/03" 표준화
         let nd = (item.date || '').trim();
-        const dm = nd.match(/^(?:\d{4}[-/])?(\d{1,2})[-/](\d{1,2})/);
+        const dm = nd.match(/^(?:\d{4}[-/.년]\s*)?(\d{1,2})[-/.월]\s*(\d{1,2})/);
         if (dm) {
           nd = `${dm[1].padStart(2, '0')}/${dm[2].padStart(2, '0')}`;
           item.date = nd;
         }
-        let monthNum = nd.split('/')[0].replace(/^0/, '');
-        let pm = parseInt(monthNum, 10);
+        let pm = parseInt(nd.split('/')[0], 10);
         if (isNaN(pm) || pm < 1 || pm > 12) {
-          pm = new Date().getMonth() + 1;
-          monthNum = String(pm);
-          item.date = `${monthNum.padStart(2, '0')}/01`;
+          // Workers의 Date는 UTC — 크론(KST 08:00 = UTC 23:00 전날)이 매월 1일 아침 실행될 때
+          // UTC 기준으로는 아직 전월이라 폴백이 전월 시트로 새던 것을 KST 보정으로 방지.
+          const kst = new Date(Date.now() + 9 * 3600 * 1000);
+          pm = kst.getUTCMonth() + 1;
+          item.date = `${String(pm).padStart(2, '0')}/01`;
         }
-        const sheetName = monthNum + '월';
+        // 시트명은 반드시 정수 월에서 유도 — 과거 "6.03" 같은 미매칭 날짜가 "6.03월" 쓰레기 시트를 만들었다.
+        const sheetName = pm + '월';
 
         if (!sheetCache[sheetName]) {
           try {
             sheetCache[sheetName] = await loadMonthData(token, env.SPREADSHEET_ID, sheetName, startRow);
           } catch (e) {
-            out(`⚠️ ${sheetName} 데이터 로드 실패(신규 월로 간주): ${e.message}`);
-            sheetCache[sheetName] = [];
+            // 404류(시트 없음)는 loadMonthData가 []로 흡수한다 — 여기 도달은 일시 오류(401/429/5xx)뿐.
+            // 빈 배열로 간주하면 중복판정이 꺼진 채 재처리가 진행돼 전 건 이중 기록된다 → 파일 보류.
+            out(`⚠️ ${sheetName} 기존 데이터 로드 실패 — "${file.name}" 보류(SOURCE 유지, 다음 실행 재시도): ${e.message}`);
+            heldAny = true;
+            break;
           }
         }
 
@@ -171,6 +182,7 @@ export async function processDriveFolder(env, token, out) {
       // 미기록 그룹이 있으면 ARCHIVE로 옮기지 않고 SOURCE에 유지(다음 실행 재시도) → 거래 유실 방지.
       // 이미 기록된 건은 다음 실행 시 중복판정으로 걸러지므로 재처리해도 안전(멱등).
       if (heldAny) {
+        held++;
         out(`⏸️ 일부 거래 미기록 → "${file.name}" SOURCE 유지(보관 이동 보류, 다음 실행 재시도)`);
         continue;
       }
@@ -187,12 +199,13 @@ export async function processDriveFolder(env, token, out) {
     } catch (err) {
       fail++;
       const s = (err.message || '').toLowerCase();
-      // HTTP 상태가 있으면 그것으로 일시/영구 판정(429·408·5xx만 일시). 상태 없으면 키워드 폴백.
+      // 판정 우선순위: ① transient 플래그(Gemini 빈 응답·잘린 JSON 등 비결정 오류)
+      //              ② HTTP 상태(429·408·5xx만 일시) ③ 상태 없으면 키워드 폴백.
       // (과거: 'gemini' 키워드 때문에 400 등 영구 Gemini 오류도 일시로 오분류 → SOURCE 무한 잔류·재시도)
       const status = err.status || 0;
-      const isTemporary = status
+      const isTemporary = err.transient === true || (status
         ? (status === 408 || status === 429 || status >= 500)
-        : TEMP_ERROR_KEYS.some((k) => s.includes(k));
+        : TEMP_ERROR_KEYS.some((k) => s.includes(k)));
       if (isTemporary) {
         out(`⚠️ 일시 오류 — SOURCE 유지 후 다음 실행 재시도: ${err.message}`);
       } else {
@@ -210,6 +223,6 @@ export async function processDriveFolder(env, token, out) {
     }
   }
 
-  out(`🏁 처리 종료 — 성공 ${ok} / 실패 ${fail} / 추가 ${added} / 중복 ${skipped}`);
-  return { ok, fail, added, skipped };
+  out(`🏁 처리 종료 — 성공 ${ok} / 실패 ${fail} / 보류 ${held} / 추가 ${added} / 중복 ${skipped}`);
+  return { ok, fail, added, skipped, held };
 }
