@@ -3,6 +3,7 @@
  * Workers엔 DOMParser가 없어 HTML 정제는 정규식 기반(cleanHtmlText)으로 대체한다.
  */
 import { fetchWithRetry } from './google-api.js';
+import { DEFAULT_CATEGORIES, DEFAULT_METHODS } from './constants.js';
 
 const RESPONSE_SCHEMA = {
   type: 'object',
@@ -25,8 +26,10 @@ const RESPONSE_SCHEMA = {
           desc: { type: 'string', description: '가맹점/사용내용' },
           inc: { type: 'integer', description: '수입 금액 (없으면 0)' },
           exp: { type: 'integer', description: '지출/투자 금액 (없으면 0)' },
-          cat: { type: 'string', description: '카테고리' },
-          method: { type: 'string', description: '결제수단' },
+          // enum으로 못박는다. 자유 문자열이었을 때 '편의점'·'카페' 같은 목록 밖 값이 나와
+          // 그대로 시트에 기록됐다(생활비 집계에서 누락).
+          cat: { type: 'string', enum: DEFAULT_CATEGORIES, description: `분류 — 반드시 다음 중 하나: ${DEFAULT_CATEGORIES.join(', ')}` },
+          method: { type: 'string', enum: DEFAULT_METHODS, description: `결제수단 — 반드시 다음 중 하나: ${DEFAULT_METHODS.join(', ')}` },
         },
         required: ['date', 'time', 'desc', 'inc', 'exp', 'cat', 'method'],
       },

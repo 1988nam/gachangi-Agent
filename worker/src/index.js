@@ -15,6 +15,8 @@
  *   폴링 크론이 2분마다 플래그를 집어 처리하므로 업로드 후 최대 2분 안에 시작된다.
  */
 import { runPipeline } from './pipeline.js';
+import { getAccessToken } from './google-auth.js';
+import { normalizeCategories } from './maintenance.js';
 
 /** 일별 정기 크론(메일 수집 포함, 항상 실행). 나머지 크론은 폴링으로 간주해 요청이 있을 때만 실행한다.
  *  wrangler.toml의 crons와 맞춰 둘 것. */
@@ -122,6 +124,14 @@ export default {
  * (수동 실행을 fetch의 waitUntil이 아니라 이 경로로 태우기 위한 구조 — 파일 상단 주석 참고)
  */
 async function handleScheduled(env, cronExpr) {
+  // 유지보수 요청이 있으면 이번 주기는 그 작업에 쓴다(파이프라인과 락을 공유해 동시 실행 방지).
+  let maint = null;
+  try { maint = await env.STATE.get('maintenance_request', { type: 'json' }); } catch (_) {}
+  if (maint) {
+    await runMaintenance(env, maint);
+    return;
+  }
+
   let requested = null;
   try { requested = await env.STATE.get('run_requested'); } catch (_) {}
   console.log(`⏰ scheduled 진입: cron="${cronExpr}" / 요청=${requested || '없음'}`);
@@ -145,6 +155,40 @@ async function handleScheduled(env, cronExpr) {
   if (!ran) {
     // 경합으로 건너뛴 경우 요청을 되살려 다음 폴에서 처리되게 한다(요청 유실 방지).
     try { await env.STATE.put('run_requested', requested, { expirationTtl: 3600 }); } catch (_) {}
+  }
+}
+
+/** 유지보수 작업 실행 — 결과를 KV maintenance_result에 남기고 요청을 지운다. */
+async function runMaintenance(env, req) {
+  let busy = null;
+  try { busy = await env.STATE.get('run_lock'); } catch (_) {}
+  if (busy) return; // 파이프라인 실행 중 — 요청을 남겨두고 다음 주기에 재시도
+
+  await env.STATE.put('run_lock', String(Date.now()), { expirationTtl: 900 });
+  const log = [];
+  const out = (m) => { log.push(m); console.log(m); };
+  const at = new Date().toISOString();
+  try {
+    out(`🛠️ 유지보수 시작: ${JSON.stringify(req)}`);
+    const token = await getAccessToken(env);
+    let result;
+    if (req.task === 'normalize-categories') {
+      result = await normalizeCategories(env, token, req, out);
+    } else {
+      throw new Error(`알 수 없는 작업: ${req.task}`);
+    }
+    await env.STATE.put('maintenance_result', JSON.stringify({ at, ok: true, result, log }));
+    out('🛠️ 유지보수 완료');
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    console.error('❌ 유지보수 실패:', msg);
+    try {
+      await env.STATE.put('maintenance_result', JSON.stringify({ at, ok: false, error: msg, log }));
+    } catch (_) {}
+  } finally {
+    // 실패해도 요청을 지운다 — 남겨두면 매 주기 같은 오류를 반복한다(결과 KV에 원인이 남는다).
+    try { await env.STATE.delete('maintenance_request'); } catch (_) {}
+    await env.STATE.delete('run_lock');
   }
 }
 
