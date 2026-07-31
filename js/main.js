@@ -154,6 +154,9 @@ function switchTab(tabId) {
     refreshReviewData();        // 모든 월 최신화 후 재렌더(정확성)
   } else if (tabId === 'transactions') {
     renderTransactionsTab(_transactions, _currentMonth);
+  } else if (tabId === 'capture') {
+    document.getElementById('page-title').textContent = '📷 은행 캡쳐 업로드';
+    renderCaptureTab();
   } else if (tabId === 'agent') {
     document.getElementById('page-title').textContent = '🤖 에이전트 관리';
     renderAgentTab();
@@ -324,7 +327,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('login-btn').addEventListener('click', () => Auth.login());
   document.getElementById('logout-btn').addEventListener('click', handleLogout);
-  document.getElementById('refresh-btn').addEventListener('click', loadCurrentMonth);
+  // 수동 새로고침(🔄)은 검토 큐의 재조회 스로틀(TTL)을 무시하고 전체 월을 다시 읽는다.
+  // 워커가 방금 넣은 신규 항목을 사용자가 즉시 확인할 수 있는 경로를 남겨두기 위함.
+  document.getElementById('refresh-btn').addEventListener('click', () => {
+    if (typeof invalidateReviewRefresh === 'function') invalidateReviewRefresh();
+    loadCurrentMonth();
+  });
 
   initFilterEvents();
 });

@@ -284,7 +284,11 @@ async function runAgentSync() {
             // 기존 내역이 고정비(isFixed)인 경우 날짜와 상관없이 같은 달 내의 동일한 명칭/금액은 중복으로 판별해 이중 지출 기입 방지
             const dateMatch = existing.isFixed ? true : (existing.date === item.date);
 
-            return dateMatch && incMatch && expMatch && descMatch;
+            // 시각은 양쪽 다 있을 때만 비교(worker/src/process.js 와 동일 규칙).
+            // 같은 날 같은 금액이라도 시각이 다르면 서로 다른 실거래이므로 중복이 아니다.
+            const timeMatch = (!existing.time || !item.time) ? true : (existing.time === item.time);
+
+            return dateMatch && timeMatch && incMatch && expMatch && descMatch;
           });
 
           if (isDuplicate) {
@@ -925,41 +929,65 @@ async function saveLogToServer() {
 
 // ─── 은행 캡쳐 이미지 업로드 → Drive SOURCE 직접 적재 → 즉시 처리 ───
 // 폰에서 찍은 은행 입출금 스크린샷을 Gmail을 거치지 않고 바로 큐(검토 큐)에 올리는 경로.
+// (사이드바 '은행 캡쳐 업로드' 탭 = #tab-capture. 에이전트 관리 탭에서 분리해 독립 메뉴가 됐다.)
 // 클라이언트의 기존 Google 토큰(Drive 스코프)으로 SOURCE 폴더에 멀티파트 업로드한 뒤,
 // 기존 처리 트리거(onAgentTrigger: 무인 Worker면 /run, 아니면 로컬 runAgentSync)를 호출한다.
 // 업로드 파일은 파이프라인에서 이미지로 인식되어 파싱→중복판정→월시트에 노란(검토) 행으로 기록된다.
 let _uploadBusy = false; // 처리 완료 전 재업로드로 같은 파일이 이중 파싱·기록되는 것 방지
 
+const CAPTURE_BTN_LABEL = '📷 은행 캡쳐 선택';
+
+/** 업로드 진행 로그 — 캡쳐 탭 로그창과 에이전트 콘솔에 함께 남긴다.
+ *  (업로드는 캡쳐 탭에서 하지만, 전체 처리 이력은 에이전트 콘솔에 이어서 보이는 게 유용하다) */
+function _writeCaptureLog(msg) {
+  _writeConsoleLog(msg);
+  const el = document.getElementById('capture-log');
+  if (!el) return;
+  if (el.textContent.trim() === '업로드 대기 중…') el.textContent = '';
+  el.textContent += `[${new Date().toLocaleTimeString('ko-KR')}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+/** 캡쳐 탭 진입 시 실행 모드(무인 Worker / 브라우저 로컬)와 로그인 상태를 표시 */
+function renderCaptureTab() {
+  const el = document.getElementById('capture-mode');
+  if (!el) return;
+  const isWorker = !!(GACHANGI_CONFIG.AGENT_WORKER_URL || '').trim();
+  const loggedIn = typeof Auth !== 'undefined' && Auth.isLoggedIn && Auth.isLoggedIn();
+  el.textContent = `${loggedIn ? '🟢' : '🔴'} ${loggedIn ? 'Google 연동됨' : '로그인 필요'} · 실행 모드: ${isWorker ? '무인 Worker' : '브라우저 로컬'}`;
+  el.style.color = loggedIn ? 'var(--color-success)' : 'var(--color-danger)';
+}
+
 async function uploadCaptureToSource(fileList) {
   if (_uploadBusy || _agentBusy) {
-    _writeConsoleLog('⏳ 이전 업로드/동기화가 아직 처리 중입니다 — 완료 후 다시 시도해 주세요.');
+    _writeCaptureLog('⏳ 이전 업로드/동기화가 아직 처리 중입니다 — 완료 후 다시 시도해 주세요.');
     showToast('⏳ 처리 중입니다. 잠시 후 다시 시도하세요.', 'warning');
     return;
   }
   const files = Array.from(fileList || []).filter((f) => f && f.type && f.type.startsWith('image/'));
   if (files.length === 0) {
-    _writeConsoleLog('⚠️ 이미지 파일이 없습니다. (지원: png/jpg/heic 등 image/*)');
+    _writeCaptureLog('⚠️ 이미지 파일이 없습니다. (지원: png/jpg/heic 등 image/*)');
     showToast('⚠️ 이미지 파일을 선택하세요.', 'warning');
     return;
   }
   if (!Auth.isLoggedIn()) {
-    _writeConsoleLog('❌ 에러: Google 로그인이 되어있지 않습니다. 먼저 로그인해 주세요.');
+    _writeCaptureLog('❌ 에러: Google 로그인이 되어있지 않습니다. 먼저 로그인해 주세요.');
     showToast('⚠️ Google 로그인이 필요합니다.', 'warning');
     return;
   }
   const folderId = GACHANGI_CONFIG.SOURCE_FOLDER_ID;
   if (!folderId || folderId.indexOf('YOUR_') === 0) {
-    _writeConsoleLog('❌ 에러: SOURCE_FOLDER_ID가 설정되지 않았습니다. (config.js 확인)');
+    _writeCaptureLog('❌ 에러: SOURCE_FOLDER_ID가 설정되지 않았습니다. (config.js 확인)');
     showToast('⚠️ 수집 폴더 설정을 확인하세요.', 'warning');
     return;
   }
 
   _uploadBusy = true;
-  const uploadBtn = document.getElementById('agent-upload-btn');
+  const uploadBtn = document.getElementById('capture-upload-btn');
   if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.textContent = '📷 업로드 중...'; }
 
   try {
-    _writeConsoleLog(`📷 은행 캡쳐 ${files.length}장 업로드 시작 → 수집 폴더(SOURCE)`);
+    _writeCaptureLog(`📷 은행 캡쳐 ${files.length}장 업로드 시작 → 수집 폴더(SOURCE)`);
     const token = gapi.client.getToken().access_token;
     let uploaded = 0;
 
@@ -973,9 +1001,9 @@ async function uploadCaptureToSource(fileList) {
         const name = `bank_${stamp}_${safeBase}`;
         await _driveMultipartUpload(token, { folderId, name, mimeType, bytes });
         uploaded++;
-        _writeConsoleLog(`  ✅ 적재: ${name} (${mimeType}, ${bytes.length}B)`);
+        _writeCaptureLog(`  ✅ 적재: ${name} (${mimeType}, ${bytes.length}B)`);
       } catch (e) {
-        _writeConsoleLog(`  ❌ 업로드 실패(${file.name}): ${e.message}`);
+        _writeCaptureLog(`  ❌ 업로드 실패(${file.name}): ${e.message}`);
       }
     }
 
@@ -985,14 +1013,14 @@ async function uploadCaptureToSource(fileList) {
     }
 
     if (uploadBtn) uploadBtn.textContent = '📷 큐 처리 중...';
-    _writeConsoleLog(`📦 ${uploaded}장 적재 완료. 이어서 파싱/기록을 실행합니다...`);
+    _writeCaptureLog(`📦 ${uploaded}장 적재 완료. 이어서 파싱/기록을 실행합니다...`);
     showToast(`📷 ${uploaded}장 업로드 완료 — 큐 처리를 시작합니다.`);
     // 적재 직후 곧바로 처리 트리거(무인 Worker면 /run, 아니면 로컬). 완료 후 검토 큐에 노란 행 반영.
     // 버튼은 처리까지 끝난 뒤에 복구해 처리 도중 재업로드(이중 기록)를 막는다.
     await onAgentTrigger();
   } finally {
     _uploadBusy = false;
-    if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.textContent = '📷 은행 캡쳐 업로드'; }
+    if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.textContent = CAPTURE_BTN_LABEL; }
   }
 }
 
@@ -1053,6 +1081,13 @@ async function triggerWorkerRun() {
       showToast('❌ Worker 인증 실패', 'error');
       return;
     }
+    // 구버전 Worker 호환: 실행 중일 때 409를 돌려주던 시절의 응답 처리.
+    if (res.status === 409) {
+      const d = await res.json().catch(() => ({}));
+      _writeConsoleLog(`⏳ ${d.message || '이미 실행 중입니다 — 이번 요청은 건너뜁니다.'}`);
+      showToast('⏳ 이미 처리 중입니다. 잠시 후 다시 시도하세요.', 'warning');
+      return;
+    }
     if (!res.ok) {
       const t = await res.text().catch(() => '');
       _writeConsoleLog(`❌ Worker 요청 실패 (${res.status}): ${t}`);
@@ -1062,9 +1097,9 @@ async function triggerWorkerRun() {
 
     const data = await res.json().catch(() => ({}));
     _writeConsoleLog(`✅ ${data.message || 'Worker 실행 요청을 보냈습니다.'}`);
-    _writeConsoleLog('ℹ️ 상세 처리 로그는 Cloudflare Worker 로그(wrangler tail)에 기록됩니다.');
-    _writeConsoleLog('🔄 처리 완료 후 새로고침하면 시트 반영 결과를 확인할 수 있습니다.');
-    showToast('☁️ 무인 에이전트 실행을 시작했습니다.');
+    _writeConsoleLog('ℹ️ 처리는 백그라운드에서 진행됩니다. 파일이 많으면 5개씩 나눠 이어서 처리합니다.');
+    _writeConsoleLog('🔄 잠시 후 [검토 큐 새로고침하고 이동]으로 결과를 확인하세요.');
+    showToast(data.queued ? '☁️ 처리를 예약했습니다 (최대 2분 내 시작)' : '☁️ 무인 에이전트 실행을 시작했습니다.');
   } catch (e) {
     _writeConsoleLog(`❌ Worker 호출 오류: ${e.message} (Worker URL/CORS/네트워크 확인)`);
     showToast('❌ Worker 호출 오류', 'error');
@@ -1149,8 +1184,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const downloadLogBtn = document.getElementById('download-agent-log-btn');
   const refreshWorkerLogBtn = document.getElementById('refresh-worker-log-btn');
 
-  const uploadBtn = document.getElementById('agent-upload-btn');
-  const uploadInput = document.getElementById('agent-upload-input');
+  const uploadBtn = document.getElementById('capture-upload-btn');
+  const uploadInput = document.getElementById('capture-upload-input');
+  const gotoReviewBtn = document.getElementById('capture-goto-review-btn');
 
   if (triggerBtn) triggerBtn.addEventListener('click', onAgentTrigger);
   if (refreshWorkerLogBtn) refreshWorkerLogBtn.addEventListener('click', loadWorkerLogs);
@@ -1159,6 +1195,14 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadInput.addEventListener('change', (e) => {
       uploadCaptureToSource(e.target.files);
       e.target.value = ''; // 같은 파일을 다시 선택해도 change가 발화되도록 초기화
+    });
+  }
+  // 처리는 백그라운드(Worker)에서 끝나므로 결과를 보려면 재조회가 필요하다.
+  // 검토 큐의 재조회 스로틀(60초 TTL)을 풀고 이동해 방금 올린 건이 바로 보이게 한다.
+  if (gotoReviewBtn) {
+    gotoReviewBtn.addEventListener('click', () => {
+      if (typeof invalidateReviewRefresh === 'function') invalidateReviewRefresh();
+      if (typeof switchTab === 'function') switchTab('review');
     });
   }
   if (rollbackBtn) rollbackBtn.addEventListener('click', rollbackSessionTransactions);

@@ -16,8 +16,38 @@ const SheetsAPI = (() => {
     inc: 2,    // C
     exp: 3,    // D
     cat: 5,    // F
-    method: 6  // G
+    method: 6, // G
+    time: 7    // H (거래 시각 HH:MM — 같은 날·같은 금액 거래 구분용, 없으면 빈칸)
   };
+
+  /**
+   * gapi 호출 지수 백오프 재시도.
+   * Sheets API는 '사용자당 분당 읽기 60회' 제한이 있어 탭 전환·다중 월 조회가 몰리면 429가 난다.
+   * 재시도가 없으면 첫 호출(loadSpreadsheetMeta)의 429 한 번으로 initApp 전체가 무너져
+   * 화면이 빈 껍데기(0원)로 남았다 → 여기서 흡수한다.
+   *
+   * retryOn 기본값이 읽기 기준(429·5xx)인 이유: 쓰기(append/update)는 5xx 때 서버에 반영됐는지
+   * 알 수 없어 재시도가 이중 기록이 될 수 있다. 쓰기 호출은 429(할당량 → 확실히 미반영)만 재시도한다.
+   */
+  async function _gapiRetry(fn, { retries = 4, baseDelay = 1000, retryOn = [429, 500, 503], label = '' } = {}) {
+    let delay = baseDelay;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn();
+      } catch (e) {
+        const status = (e && e.status) || (e && e.result && e.result.error && e.result.error.code) || 0;
+        if (attempt >= retries || !retryOn.includes(status)) throw e;
+        // 지터: 12개월 병렬 요청이 동시에 429를 맞고 같은 시점에 재돌진하는 것을 흩는다.
+        const wait = delay + Math.floor(Math.random() * 400);
+        console.warn(`[Sheets] ${status} ${label} — ${wait}ms 후 재시도 (${attempt + 1}/${retries})`);
+        await new Promise((r) => setTimeout(r, wait));
+        delay *= 2;
+      }
+    }
+  }
+
+  /** 쓰기 호출용 재시도 옵션(429만) */
+  const _WRITE_RETRY = { retryOn: [429] };
 
   /** 컬럼 인덱스를 문자열 라벨로 변환 (마이그레이션용) */
   function _colIndexToLabel(index) {
@@ -38,12 +68,12 @@ const SheetsAPI = (() => {
     const endRow = cfg.START_ROW + 500;
     const range = `${monthName}!A${cfg.START_ROW}:Z${endRow}`;
 
-    const res = await gapi.client.sheets.spreadsheets.get({
+    const res = await _gapiRetry(() => gapi.client.sheets.spreadsheets.get({
       spreadsheetId: cfg.SPREADSHEET_ID,
       ranges: [range],
       includeGridData: true,
       fields: 'sheets.data.rowData.values(formattedValue,effectiveFormat.backgroundColor)',
-    });
+    }), { label: 'get' });
 
     const rowData = res.result.sheets?.[0]?.data?.[0]?.rowData || [];
     const transactions = [];
@@ -97,6 +127,7 @@ const SheetsAPI = (() => {
         exp,
         cat,
         method: cells[colIndices.method]?.formattedValue || '',
+        time: _normalizeTime(cells[colIndices.time]?.formattedValue),
         bgColor,
         needsReview: _isYellow(bgColor),
       });
@@ -114,12 +145,12 @@ const SheetsAPI = (() => {
       const catCol = _colIndexToLabel(colIndices.cat);
       const methodCol = _colIndexToLabel(colIndices.method);
 
-      const res = await gapi.client.sheets.spreadsheets.get({
+      const res = await _gapiRetry(() => gapi.client.sheets.spreadsheets.get({
         spreadsheetId: cfg.SPREADSHEET_ID,
         ranges: [`${existingMonth}!${catCol}25:${methodCol}25`],
         includeGridData: true,
         fields: 'sheets.data.rowData.values.dataValidation',
-      });
+      }), { label: 'get' });
 
       const sheet = res.result.sheets?.[0];
       const rows = sheet?.data?.[0]?.rowData || [];
@@ -150,6 +181,22 @@ const SheetsAPI = (() => {
     const g = Math.round((bg.green || 0) * 255);
     const b = Math.round((bg.blue || 0) * 255);
     return r >= 240 && g >= 240 && b <= 20;
+  }
+
+  /** 거래 시각 표기를 'HH:MM'(24시간)으로 표준화. worker/src/util.js:normalizeTime 과 동일 규칙. */
+  function _normalizeTime(raw) {
+    const v = (raw == null ? '' : String(raw)).trim();
+    if (!v) return '';
+    const isPm = /오후|PM/i.test(v);
+    const isAm = /오전|AM/i.test(v);
+    const m = v.match(/(\d{1,2})\s*:\s*(\d{1,2})/);
+    if (!m) return '';
+    let h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    if (isNaN(h) || isNaN(min) || h > 23 || min > 59) return '';
+    if (isPm && h < 12) h += 12;
+    if (isAm && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
   }
 
   function _parseNumber(str) {
@@ -243,10 +290,10 @@ const SheetsAPI = (() => {
   async function loadSpreadsheetMeta() {
     console.log('[Sheets] 구글 API 직접 연동 - 메타데이터 로드 시작');
     try {
-      const res = await gapi.client.sheets.spreadsheets.get({
+      const res = await _gapiRetry(() => gapi.client.sheets.spreadsheets.get({
         spreadsheetId: cfg.SPREADSHEET_ID,
         fields: 'sheets.properties(title,sheetId)'
-      });
+      }), { label: 'get' });
       const sheets = res.result.sheets || [];
       _sheetMeta = {};
       sheets.forEach(s => {
@@ -286,15 +333,20 @@ const SheetsAPI = (() => {
     return processed;
   }
 
-  /** 단일 거래 내역 추가 */
-  async function addTransaction(monthName, data, isFixed = false) {
-    const matchedTxs = await addTransactionsBatch(monthName, [data], isFixed);
+  /** 단일 거래 내역 추가
+   *  opts.markYellow=false 이면 '검토 필요(노란)'로 칠하지 않고 흰색으로 넣는다.
+   *  (사용자가 직접 추가한 항목은 이미 검토를 마친 것이므로 검토 큐에 뜨면 안 됨) */
+  async function addTransaction(monthName, data, isFixed = false, opts = {}) {
+    const matchedTxs = await addTransactionsBatch(monthName, [data], isFixed, opts);
     const matched = matchedTxs.find(r => r.date === data.date && r.desc === data.desc && r.exp === (data.exp || 0) && r.inc === (data.inc || 0));
     return matched ? matched.rowIndex : matchedTxs.length;
   }
 
-  /** 다중 거래 내역 일괄 추가 */
-  async function addTransactionsBatch(monthName, itemsData, isFixed = false) {
+  /** 다중 거래 내역 일괄 추가
+   *  opts.markYellow(기본 true): 일반(비고정) 추가를 노란색(검토 필요)으로 칠할지.
+   *  자동 인제스트(캡쳐/OCR)는 true(검토 필요), 사용자 수동 추가는 false(흰색). */
+  async function addTransactionsBatch(monthName, itemsData, isFixed = false, opts = {}) {
+    const markYellow = opts.markYellow !== false;
     if (!itemsData || itemsData.length === 0) return [];
     
     if (Object.keys(_sheetMeta).length === 0) {
@@ -312,19 +364,21 @@ const SheetsAPI = (() => {
       item.exp || 0,
       '', // Column E
       item.cat || '',
-      item.method || ''
+      item.method || '',
+      // 'HH:MM'을 그대로 넣으면 시트가 TIME 값으로 바꿔 표기가 흔들린다 → 어포스트로피로 텍스트 고정
+      _normalizeTime(item.time) ? `'${_normalizeTime(item.time)}` : ''
     ]);
 
     const range = `${monthName}!A4`;
     console.log(`[Sheets] 일괄 추가 중 - month: "${monthName}", 건수: ${values.length}`);
     
-    const appendRes = await gapi.client.sheets.spreadsheets.values.append({
+    const appendRes = await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId: cfg.SPREADSHEET_ID,
       range,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       resource: { values }
-    });
+    }), { ..._WRITE_RETRY, label: 'values.append' });
 
     const updatedRange = appendRes.result.updates?.updatedRange;
     console.log(`[Sheets] 추가 완료 updatedRange:`, updatedRange);
@@ -337,8 +391,8 @@ const SheetsAPI = (() => {
       itemsData.forEach((item, index) => {
         const rowNum = startRow + index;
         let red = 1, green = 1, blue = 1;
-        if (!isFixed) {
-          red = 1; green = 1; blue = 0; // Yellow
+        if (!isFixed && markYellow) {
+          red = 1; green = 1; blue = 0; // Yellow (검토 필요)
         } else if (item.bgColor) {
           red = item.bgColor.red ?? 1;
           green = item.bgColor.green ?? 1;
@@ -366,10 +420,10 @@ const SheetsAPI = (() => {
 
       if (formatRequests.length > 0) {
         console.log(`[Sheets] 일괄 포맷팅 업데이트 중 - month: "${monthName}", 건수: ${formatRequests.length}`);
-        await gapi.client.sheets.spreadsheets.batchUpdate({
+        await _gapiRetry(() => gapi.client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: cfg.SPREADSHEET_ID,
           resource: { requests: formatRequests }
-        });
+        }), { ..._WRITE_RETRY, label: 'batchUpdate' });
       }
     }
 
@@ -477,20 +531,20 @@ const SheetsAPI = (() => {
     }
 
     if (data.length > 0) {
-      await gapi.client.sheets.spreadsheets.values.batchUpdate({
+      await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: cfg.SPREADSHEET_ID,
         resource: {
           valueInputOption: 'USER_ENTERED',
           data
         }
-      });
+      }), { ..._WRITE_RETRY, label: 'values.batchUpdate' });
     }
 
     if (formatRequests.length > 0) {
-      await gapi.client.sheets.spreadsheets.batchUpdate({
+      await _gapiRetry(() => gapi.client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: cfg.SPREADSHEET_ID,
         resource: { requests: formatRequests }
-      });
+      }), { ..._WRITE_RETRY, label: 'batchUpdate' });
     }
   }
 
@@ -522,10 +576,10 @@ const SheetsAPI = (() => {
       }
     }));
 
-    await gapi.client.sheets.spreadsheets.batchUpdate({
+    await _gapiRetry(() => gapi.client.sheets.spreadsheets.batchUpdate({
       spreadsheetId: cfg.SPREADSHEET_ID,
       resource: { requests }
-    });
+    }), { ..._WRITE_RETRY, label: 'batchUpdate' });
   }
 
   /** 검토 완료 (배경색 흰색) */
@@ -659,10 +713,10 @@ const SheetsAPI = (() => {
 
   // ─── 보유 카드 관리 직접 구글 API 연동 ───
   async function loadCards() {
-    const response = await gapi.client.sheets.spreadsheets.values.get({
+    const response = await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: cfg.SPREADSHEET_ID,
       range: '보유 카드!A3:G100'
-    });
+    }), { label: 'values.get' });
     const rows = response.result.values || [];
     const cards = [];
     rows.forEach((row, i) => {
@@ -691,13 +745,13 @@ const SheetsAPI = (() => {
     const values = [
       ['', data.cardName || '', data.owner || '', data.purpose || '', data.minFee || '', data.linkedBank || '', data.linkedAccount || '']
     ];
-    await gapi.client.sheets.spreadsheets.values.append({
+    await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId: cfg.SPREADSHEET_ID,
       range: '보유 카드!A4',
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       resource: { values }
-    });
+    }), { ..._WRITE_RETRY, label: 'values.append' });
     return { success: true };
   }
 
@@ -705,12 +759,12 @@ const SheetsAPI = (() => {
     const values = [
       [data.cardName || '', data.owner || '', data.purpose || '', data.minFee || '', data.linkedBank || '', data.linkedAccount || '']
     ];
-    await gapi.client.sheets.spreadsheets.values.update({
+    await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId: cfg.SPREADSHEET_ID,
       range: `보유 카드!B${rowIndex}:G${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values }
-    });
+    }), { ..._WRITE_RETRY, label: 'values.update' });
     return { success: true };
   }
 
@@ -722,7 +776,7 @@ const SheetsAPI = (() => {
     if (sheetId === undefined) {
       throw new Error('보유 카드 시트의 ID를 조회할 수 없습니다.');
     }
-    await gapi.client.sheets.spreadsheets.batchUpdate({
+    await _gapiRetry(() => gapi.client.sheets.spreadsheets.batchUpdate({
       spreadsheetId: cfg.SPREADSHEET_ID,
       resource: {
         requests: [{
@@ -736,16 +790,16 @@ const SheetsAPI = (() => {
           }
         }]
       }
-    });
+    }), { ..._WRITE_RETRY, label: 'batchUpdate' });
     return { success: true };
   }
 
   // ─── 보유 계좌 관리 직접 구글 API 연동 ───
   async function loadAccounts() {
-    const response = await gapi.client.sheets.spreadsheets.values.get({
+    const response = await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: cfg.SPREADSHEET_ID,
       range: '보유 통장/자산!A2:G100'
-    });
+    }), { label: 'values.get' });
     const rows = response.result.values || [];
     const accounts = [];
     rows.forEach((row, i) => {
@@ -774,13 +828,13 @@ const SheetsAPI = (() => {
     const values = [
       ['', data.type || '', data.owner || '', data.purpose || '', data.accountName || '', data.accountNumber || '', data.ownerName || '']
     ];
-    await gapi.client.sheets.spreadsheets.values.append({
+    await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId: cfg.SPREADSHEET_ID,
       range: '보유 통장/자산!A3',
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       resource: { values }
-    });
+    }), { ..._WRITE_RETRY, label: 'values.append' });
     return { success: true };
   }
 
@@ -788,12 +842,12 @@ const SheetsAPI = (() => {
     const values = [
       [data.type || '', data.owner || '', data.purpose || '', data.accountName || '', data.accountNumber || '', data.ownerName || '']
     ];
-    await gapi.client.sheets.spreadsheets.values.update({
+    await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId: cfg.SPREADSHEET_ID,
       range: `보유 통장/자산!B${rowIndex}:G${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values }
-    });
+    }), { ..._WRITE_RETRY, label: 'values.update' });
     return { success: true };
   }
 
@@ -805,7 +859,7 @@ const SheetsAPI = (() => {
     if (sheetId === undefined) {
       throw new Error('보유 통장/자산 시트의 ID를 조회할 수 없습니다.');
     }
-    await gapi.client.sheets.spreadsheets.batchUpdate({
+    await _gapiRetry(() => gapi.client.sheets.spreadsheets.batchUpdate({
       spreadsheetId: cfg.SPREADSHEET_ID,
       resource: {
         requests: [{
@@ -819,7 +873,7 @@ const SheetsAPI = (() => {
           }
         }]
       }
-    });
+    }), { ..._WRITE_RETRY, label: 'batchUpdate' });
     return { success: true };
   }
 
@@ -833,26 +887,26 @@ const SheetsAPI = (() => {
   async function _ensureBudgetSheet() {
     if (Object.keys(_sheetMeta).length === 0) await loadSpreadsheetMeta();
     if (_sheetMeta[BUDGET_SHEET] !== undefined) return;
-    const addRes = await gapi.client.sheets.spreadsheets.batchUpdate({
+    const addRes = await _gapiRetry(() => gapi.client.sheets.spreadsheets.batchUpdate({
       spreadsheetId: cfg.SPREADSHEET_ID,
       resource: { requests: [{ addSheet: { properties: { title: BUDGET_SHEET } } }] },
-    });
+    }), { ..._WRITE_RETRY, label: 'batchUpdate' });
     const newId = addRes.result.replies?.[0]?.addSheet?.properties?.sheetId;
     if (newId !== undefined) _sheetMeta[BUDGET_SHEET] = newId;
-    await gapi.client.sheets.spreadsheets.values.update({
+    await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId: cfg.SPREADSHEET_ID,
       range: `${BUDGET_SHEET}!A1:B1`,
       valueInputOption: 'RAW',
       resource: { values: [['카테고리', '월예산']] },
-    });
+    }), { ..._WRITE_RETRY, label: 'values.update' });
   }
   async function loadBudgets() {
     try {
       await _ensureBudgetSheet();
-      const res = await gapi.client.sheets.spreadsheets.values.get({
+      const res = await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId: cfg.SPREADSHEET_ID,
         range: `${BUDGET_SHEET}!A2:B1000`,
-      });
+      }), { label: 'values.get' });
       const rows = res.result.values || [];
       const out = {};
       rows.forEach(r => {
@@ -870,17 +924,17 @@ const SheetsAPI = (() => {
     // 예산 시트가 통째로 비고, 다음 시작 때 syncFromSheet가 빈 값을 localStorage까지 덮어써
     // 모든 기기에서 예산이 소실됐다. → 먼저 덮어쓰고, 남는 아래 행(삭제분)만 비운다.
     if (entries.length > 0) {
-      await gapi.client.sheets.spreadsheets.values.update({
+      await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: cfg.SPREADSHEET_ID,
         range: `${BUDGET_SHEET}!A2`,
         valueInputOption: 'RAW',
         resource: { values: entries.map(([cat, amt]) => [cat, amt]) },
-      });
+      }), { ..._WRITE_RETRY, label: 'values.update' });
     }
-    await gapi.client.sheets.spreadsheets.values.clear({
+    await _gapiRetry(() => gapi.client.sheets.spreadsheets.values.clear({
       spreadsheetId: cfg.SPREADSHEET_ID,
       range: `${BUDGET_SHEET}!A${2 + entries.length}:B1000`,
-    });
+    }), { ..._WRITE_RETRY, label: 'values.clear' });
     return { success: true };
   }
 

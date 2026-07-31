@@ -27,32 +27,68 @@ function _collectReviewItems() {
   return items;
 }
 
+/** 동시 실행 수를 제한한 map — 12개월을 한꺼번에 던지면 Sheets 분당 할당량(사용자당 읽기 60회)을
+ *  단번에 태워 429가 난다. 3개씩 흘려보내면 같은 작업을 할당량 안에서 처리한다. */
+async function _mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const workers = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 /** 검토 큐 탭 진입 시 모든 월 데이터를 최신화한 뒤 다시 그린다(탭이 활성일 때만). */
-let _reviewRefreshing = false; // 재진입 가드 — 최대 12개월 병렬 로드가 겹쳐 돌지 않게
-let _reviewEpoch = 0;          // 사용자 완료/수정/삭제 때마다 증가 — 진행 중 새로고침의 낡은 스냅샷 무효화용
-async function refreshReviewData() {
+let _reviewRefreshing = false;      // 재진입 가드 — 12개월 로드가 겹쳐 돌지 않게
+let _reviewEpoch = 0;               // 사용자 완료/수정/삭제 때마다 증가 — 진행 중 새로고침의 낡은 스냅샷 무효화용
+let _reviewLastFullRefresh = 0;     // 마지막 전체 월 재조회 시각
+const REVIEW_REFRESH_TTL_MS = 60 * 1000;
+
+/** 수동 새로고침(🔄)·데이터 변경 시 호출 — 다음 탭 진입에서 전체 월을 다시 읽게 한다. */
+function invalidateReviewRefresh() {
+  _reviewLastFullRefresh = 0;
+}
+
+/**
+ * @param {boolean} force TTL을 무시하고 전체 월을 다시 읽는다(수동 새로고침용).
+ *
+ * 과거엔 탭에 들어올 때마다 무조건 12개월을 병렬로 다시 읽었다. switchTab이 탭 진입뿐 아니라
+ * loadCurrentMonth() 끝에서도 불리기 때문에 항목 하나 고칠 때마다 12회 읽기가 또 돌았고,
+ * 이게 429(할당량 초과)의 직접적인 원인이었다. → TTL 안에서는 캐시에 없는 달만 읽는다.
+ */
+async function refreshReviewData(force = false) {
   if (_reviewRefreshing) return;
   _reviewRefreshing = true;
   const startEpoch = _reviewEpoch;
   const countEl = document.getElementById('review-count');
-  if (countEl) countEl.textContent = '불러오는 중…';
   try {
     const meta = (SheetsAPI.getSheetMeta && SheetsAPI.getSheetMeta()) || {};
     const months = ((window.GACHANGI_CONFIG && GACHANGI_CONFIG.MONTH_NAMES) || [])
       .filter(m => meta[m] !== undefined);
-    const results = await Promise.all(months.map(m =>
-      SheetsAPI.loadMonthData(m)
-        .then(d => [m, d])
-        .catch(() => [m, (_allMonthData && _allMonthData[m]) || []])
-    ));
-    // 로드 도중 사용자가 완료/수정/삭제했다면 이 결과는 낡은 스냅샷 → 버린다(완료 항목 부활 방지).
-    if (startEpoch !== _reviewEpoch) return;
-    results.forEach(([m, d]) => {
-      _allMonthData[m] = d;
-      // _transactions는 loadCurrentMonth에서 _allMonthData[_currentMonth]의 별칭으로 시작한다.
-      // 재할당이 별칭을 끊으면 상세내역/고정비 탭이 낡은 rowIndex로 남는다 → 함께 갱신.
-      if (typeof _currentMonth !== 'undefined' && m === _currentMonth) _transactions = d;
-    });
+    const isFull = force || (Date.now() - _reviewLastFullRefresh >= REVIEW_REFRESH_TTL_MS);
+    // TTL 안이면 캐시에 없는 달만 읽는다(보통 0건) → 탭을 오갈 때마다 12개월을 다시 읽지 않는다.
+    const targets = isFull ? months : months.filter(m => !_allMonthData || !_allMonthData[m]);
+    if (targets.length > 0) {
+      if (countEl) countEl.textContent = '불러오는 중…';
+      const results = await _mapLimit(targets, 3, m =>
+        SheetsAPI.loadMonthData(m)
+          .then(d => [m, d])
+          .catch(() => [m, (_allMonthData && _allMonthData[m]) || []])
+      );
+      if (isFull) _reviewLastFullRefresh = Date.now();
+      // 로드 도중 사용자가 완료/수정/삭제했다면 이 결과는 낡은 스냅샷 → 버린다(완료 항목 부활 방지).
+      if (startEpoch !== _reviewEpoch) return;
+      results.forEach(([m, d]) => {
+        _allMonthData[m] = d;
+        // _transactions는 loadCurrentMonth에서 _allMonthData[_currentMonth]의 별칭으로 시작한다.
+        // 재할당이 별칭을 끊으면 상세내역/고정비 탭이 낡은 rowIndex로 남는다 → 함께 갱신.
+        if (typeof _currentMonth !== 'undefined' && m === _currentMonth) _transactions = d;
+      });
+    }
   } catch (e) {
     console.warn('[검토 큐 전체 새로고침 실패]', e);
   } finally {
@@ -105,7 +141,7 @@ function renderReviewTab() {
     tr.innerHTML = `
       <td><input type="checkbox" class="review-check-item" data-row="${tx.rowIndex}" data-month="${escapeHtml(itemMonth)}"></td>
       <td><span class="date-badge" style="background: rgba(99,102,241,0.15); color: #a5b4fc;">${escapeHtml(itemMonth)}</span></td>
-      <td><span class="date-badge">${escapeHtml(tx.date)}</span></td>
+      <td><span class="date-badge">${escapeHtml(tx.date)}</span>${tx.time ? `<span style="display:block; font-size:10px; color:var(--text-muted); margin-top:2px;">${escapeHtml(tx.time)}</span>` : ''}</td>
       <td class="desc-cell" title="${escapeHtml(tx.desc)}">${escapeHtml(tx.desc)}</td>
       <td class="amount-cell inc">${tx.inc > 0 ? formatWon(tx.inc) : ''}</td>
       <td class="${isSaving ? 'amount-cell save' : 'amount-cell exp'}">
@@ -440,11 +476,11 @@ async function _reloadMonthAndRerender(month) {
 /** 여러 달을 다시 읽어 캐시 갱신 후 재렌더. */
 async function _reloadMonthsAndRerender(months) {
   _reviewEpoch++;
-  await Promise.all((months || []).map(m =>
+  await _mapLimit(months || [], 3, m =>
     SheetsAPI.loadMonthData(m)
       .then(d => { _allMonthData[m] = d; _syncCurrentMonthAlias(m, d); })
       .catch(e => console.warn(`[검토 큐] ${m} 재로딩 실패:`, e))
-  ));
+  );
   if (typeof updateReviewBadge === 'function') updateReviewBadge();
   renderReviewTab();
 }

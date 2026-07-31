@@ -118,6 +118,10 @@
         <span class="nav-label">검토 큐</span>
         <span id="review-badge" class="badge" style="display:none">0</span>
       </div>
+      <div class="nav-item" data-tab="capture" id="nav-capture">
+        <span class="nav-icon">📷</span>
+        <span class="nav-label">은행 캡쳐 업로드</span>
+      </div>
       <div class="nav-item" data-tab="fixed-expenses" id="nav-fixed-expenses">
         <span class="nav-icon">📌</span>
         <span class="nav-label">고정비 관리</span>
@@ -502,6 +506,34 @@
       </div>
     </section>
 
+    <!-- ── 은행 캡쳐 업로드 탭 ────────────────────── -->
+    <section id="tab-capture" class="tab-panel">
+      <div class="glass card page-header-card">
+        <h3 class="card-title">📷 은행 캡쳐 업로드</h3>
+        <p class="card-desc">폰에서 찍은 은행 입출금·이체 스크린샷을 올리면 수집 폴더에 적재한 뒤 자동으로 파싱해 해당 월 시트에 기록하고 검토 큐에 올립니다.</p>
+      </div>
+
+      <div class="glass card" style="margin-top: 24px;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+          <h3 class="card-title">이미지 올리기</h3>
+          <span id="capture-mode" style="font-size: 12px; color: var(--text-muted);">실행 모드 확인 중…</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 24px 0 20px;">
+          <button id="capture-upload-btn" class="btn-primary" style="padding: 14px 28px; font-size: 15px;">📷 은행 캡쳐 선택</button>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 0; text-align: center; line-height: 1.7;">
+            여러 장을 한 번에 선택할 수 있습니다 (png · jpg · heic 등 이미지).<br>
+            업로드 후 최대 2분 안에 처리가 시작되고, 파일이 많으면 5개씩 나눠 이어서 처리합니다.
+          </p>
+          <button id="capture-goto-review-btn" class="btn-primary" style="background: var(--color-success); border-color: var(--color-success); padding: 8px 16px; font-size: 12px;">🔄 검토 큐 새로고침하고 이동</button>
+          <input type="file" id="capture-upload-input" accept="image/*" multiple style="display:none">
+        </div>
+
+        <div id="capture-log" style="background: #020617; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px; font-family: monospace, Courier, sans-serif; font-size: 12px; color: #10b981; max-height: 260px; min-height: 90px; overflow-y: auto; line-height: 1.6; white-space: pre-wrap;">업로드 대기 중…
+</div>
+      </div>
+    </section>
+
     <!-- ── 상세 내역 탭 ────────────────────── -->
     <section id="tab-transactions" class="tab-panel">
       <div class="glass card">
@@ -622,18 +654,6 @@
               <button id="agent-rollback-btn" class="btn-primary" style="background: var(--color-warning); border-color: var(--color-warning); font-size: 11px; padding: 4px 8px; color: #000; width: 100%;">↩️ 세션 내역 롤백</button>
               <button id="agent-clear-yellow-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); font-size: 11px; padding: 4px 8px; width: 100%;">🚨 미검토 노란행 삭제</button>
             </div>
-          </div>
-        </div>
-
-        <div class="kpi-card glass">
-          <div class="kpi-icon">📷</div>
-          <div class="kpi-body" style="width: 100%;">
-            <div class="kpi-label">은행 입출금 캡쳐 업로드</div>
-            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px; width: 100%;">
-              <button id="agent-upload-btn" class="btn-primary" style="font-size: 12px; padding: 6px 12px; width: 100%;">📷 은행 캡쳐 업로드</button>
-              <p style="font-size: 11px; color: var(--text-muted); margin: 2px 0 0; line-height: 1.4;">폰에서 찍은 은행 이체/출금 스크린샷을 올리면 자동으로 파싱해 검토 큐에 올립니다.</p>
-            </div>
-            <input type="file" id="agent-upload-input" accept="image/*" multiple style="display:none">
           </div>
         </div>
 
