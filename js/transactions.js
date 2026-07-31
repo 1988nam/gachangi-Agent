@@ -21,6 +21,13 @@ function renderTransactionsTab(transactions, monthName) {
     return true;
   });
 
+  // 수입은 항상 최상단. 시트에는 기록된 순서대로 행이 쌓이므로, 급여 등이 뒤늦게 추가되면
+  // 지출 사이에 파묻혔다. 표시 순서만 바꾸는 것이고 시트 행 위치는 건드리지 않는다.
+  // 수입 여부는 금액과 분류 둘 다로 판정한다(분류가 비어 있어도 입금이면 수입으로 본다).
+  // 각 묶음 안에서는 기존 순서(시트 기록순)를 그대로 유지한다 — filter 두 번이라 안정적이다.
+  const isIncome = t => (t.inc || 0) > 0 || t.cat === '수입';
+  filtered = [...filtered.filter(isIncome), ...filtered.filter(t => !isIncome(t))];
+
   // 합계 업데이트 (early return 전에 실행하여 정확한 수치가 표시되도록 보장)
   const totalInc = filtered.reduce((s, t) => s + t.inc, 0);
   const totalExp = filtered.reduce((s, t) => s + (t.cat === '투자/저축' ? 0 : t.exp), 0);
