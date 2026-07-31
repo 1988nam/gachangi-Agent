@@ -11,8 +11,16 @@ compatibility_date = "2024-11-01"
 #   13:00 KST → 04:00 UTC
 #   18:00 KST → 09:00 UTC
 # 시간대를 바꾸려면 (원하는 KST 시 − 9)를 UTC 시로 적으면 된다.
+#
+# '*/2 * * * *'는 앱의 즉시 실행 요청(KV run_requested)을 집어가는 폴링 크론이다.
+# POST /run이 요청 플래그만 남기고 실제 처리는 이 경로에서 하는 이유는 src/index.js 상단 주석 참고
+# (fetch + waitUntil 백그라운드 실행은 완주하지 못하고 중간에 종료됨 — 실측). 요청이 없으면
+# KV 읽기 1회로 즉시 끝나므로 비용은 무시할 수 있다. 값을 바꾸면 index.js의 POLL_CRON도 함께 고칠 것.
 [triggers]
-crons = ["0 23 * * *", "0 4 * * *", "0 9 * * *"]
+#
+# 크론 트리거는 계정 전체 5개가 한도라 일별 3회(08·13·18시 KST)에서 2회(08·18시 KST)로 줄이고
+# 그 자리를 폴링 크론에 내줬다. 낮 시간대 메일은 폴링이 아니라 앱에서 즉시 실행을 누르면 처리된다.
+crons = ["0 23 * * *", "0 9 * * *", "*/2 * * * *"]
 
 # 토큰 캐시 + 동시 실행 락 + (향후) 마지막 historyId 저장용.
 # 생성:  wrangler kv namespace create STATE
@@ -28,9 +36,18 @@ binding = "SVC_BICHANGI"
 service = "bichangi-agent"
 
 # 비밀이 아닌 설정값(라벨명·CORS). 라벨/CORS만 vars로 두고, ID·키류는 secret으로 등록한다.
+# 실행 로그 보존. 끄면 `wrangler tail`(라이브)로만 볼 수 있어, 실행이 죽은 뒤에는
+# 어디까지 처리했는지 사후 추적이 불가능하다(2026-07-31 조용한 중단 때 실제로 겪음).
+[observability]
+enabled = true
+
 [vars]
 GMAIL_SOURCE_LABEL = "가계부"
 GMAIL_DONE_LABEL = "가계부/처리완료"
+# 한 실행에서 처리할 SOURCE 파일 수 상한 / 실행 시간 예산(ms).
+# 파일 1개당 Gemini 호출 + Sheets 6~9회 호출이 들어 한꺼번에 돌리면 Worker 실행 한도에 걸린다.
+MAX_FILES_PER_RUN = "5"
+RUN_BUDGET_MS = "120000"
 ALLOWED_ORIGIN = "*"   # 브라우저 '즉시 실행' 버튼 호출 출처. 배포 후 Pages 도메인으로 좁히는 것을 권장.
 # Vertex AI(Gemini) — generativelanguage 지역제한 회피용 리전 고정 엔드포인트
 VERTEX_PROJECT_ID = "gen-lang-client-0706834886"

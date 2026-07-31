@@ -52,7 +52,7 @@ export async function runPipeline(env, trigger) {
   }
 
   // ── Phase 3: Drive SOURCE → Gemini → Sheets → ARCHIVE/FAIL ──
-  const proc = (await processDriveFolder(env, token, out)) || { ok: 0, fail: 0, added: 0, skipped: 0, held: 0 };
+  const proc = (await processDriveFolder(env, token, out)) || { ok: 0, fail: 0, added: 0, skipped: 0, held: 0, fixedUpdated: 0, remaining: 0 };
 
   out('🏁 파이프라인 완료.');
   return {
@@ -65,6 +65,8 @@ export async function runPipeline(env, trigger) {
       ok: proc.ok || 0,
       fail: proc.fail || 0,
       held: proc.held || 0,
+      fixedUpdated: proc.fixedUpdated || 0,
+      remaining: proc.remaining || 0,
       ingestError,
     },
   };

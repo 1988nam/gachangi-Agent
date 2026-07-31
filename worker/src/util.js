@@ -22,6 +22,27 @@ export function concatBytes(...parts) {
   return out;
 }
 
+/**
+ * 거래 시각 표기를 'HH:MM'(24시간)으로 표준화. 값이 없거나 해석 불가면 빈 문자열.
+ * 은행 앱 캡쳐는 '14:23' · '오후 2:23' · '2:23 PM' 등 표기가 제각각이고,
+ * 시트 셀이 TIME 서식으로 바뀌면 '오후 2:23:00'으로 읽히기도 해서 읽기/쓰기 양쪽에서 정규화한다.
+ * (표기가 다르다고 다른 거래로 오판하면 중복 판정이 무력해진다)
+ */
+export function normalizeTime(raw) {
+  const v = (raw == null ? '' : String(raw)).trim();
+  if (!v) return '';
+  const isPm = /오후|PM/i.test(v);
+  const isAm = /오전|AM/i.test(v);
+  const m = v.match(/(\d{1,2})\s*:\s*(\d{1,2})/);
+  if (!m) return '';
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (isNaN(h) || isNaN(min) || h > 23 || min > 59) return '';
+  if (isPm && h < 12) h += 12;
+  if (isAm && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
 /** Uint8Array → 표준 base64 (Gemini inlineData 전송용). 청크 단위로 btoa 안전 처리. */
 export function bytesToBase64(bytes) {
   let binary = '';

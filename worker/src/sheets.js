@@ -1,8 +1,12 @@
 /**
  * Google Sheets REST 래퍼 (js/sheets.js 의 Worker 포팅).
- * gapi 대신 순수 fetch. 가계부 시트 구조: A날짜 B내용 C수입 D지출 E잔액(빈칸) F분류 G결제수단, START_ROW=4.
+ * gapi 대신 순수 fetch. 가계부 시트 구조:
+ *   A날짜 B내용 C수입 D지출 E잔액(빈칸) F분류 G결제수단 H시각(HH:MM, 없으면 빈칸), START_ROW=4.
+ * H열은 같은 날·같은 금액의 서로 다른 거래를 구분하기 위해 추가됐다(중복 판정용).
+ * 기존 행은 건드리지 않고 새로 추가되는 행에만 기록되므로, 값이 없는 과거 행은 종전대로 판정된다.
  */
 import { googleFetch } from './google-api.js';
+import { normalizeTime } from './util.js';
 
 const BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
 
@@ -45,7 +49,7 @@ export async function loadSheetMeta(token, spreadsheetId) {
  */
 export async function loadMonthData(token, spreadsheetId, monthName, startRow = 4) {
   const endRow = startRow + 500;
-  const range = `${monthName}!A${startRow}:G${endRow}`;
+  const range = `${monthName}!A${startRow}:H${endRow}`;
   let res;
   try {
     res = await googleFetch(token, `${BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`);
@@ -68,6 +72,7 @@ export async function loadMonthData(token, spreadsheetId, monthName, startRow = 
     const exp = parseNumber(cells[3]);
     const cat = (cells[5] || '').toString();
     const method = (cells[6] || '').toString();
+    const time = normalizeTime(cells[7]);
 
     if (!rawDate && !desc && inc === 0 && exp === 0) return;
 
@@ -85,7 +90,7 @@ export async function loadMonthData(token, spreadsheetId, monthName, startRow = 
       date = monthPrefix ? `${monthPrefix}/01` : '-';
     }
 
-    out.push({ rowIndex: startRow + i, date, desc, inc, exp, cat, method, isFixed });
+    out.push({ rowIndex: startRow + i, date, time, desc, inc, exp, cat, method, isFixed });
   });
 
   return out;
@@ -98,15 +103,21 @@ export async function loadMonthData(token, spreadsheetId, monthName, startRow = 
 export async function addTransactionsBatch(token, spreadsheetId, sheetId, monthName, items, { startRow = 4, markYellow = true } = {}) {
   if (!items || items.length === 0) return;
 
-  const values = items.map((item) => [
-    item.date || '-',
-    sheetSafeText(item.desc || ''),
-    item.inc || 0,
-    item.exp || 0,
-    '', // E열(잔액 수식 영역) 비움
-    item.cat || '',
-    item.method || '',
-  ]);
+  const values = items.map((item) => {
+    // 'HH:MM'을 그냥 넣으면 시트가 TIME 값으로 자동 변환해 '오후 2:23:00'·소수 일련값으로 굳는다
+    // (A열 날짜가 일련번호로 굳어 중복 판정이 깨졌던 것과 같은 문제) → 선행 어포스트로피로 텍스트 고정.
+    const t = normalizeTime(item.time);
+    return [
+      item.date || '-',
+      sheetSafeText(item.desc || ''),
+      item.inc || 0,
+      item.exp || 0,
+      '', // E열(잔액 수식 영역) 비움
+      item.cat || '',
+      item.method || '',
+      t ? `'${t}` : '',
+    ];
+  });
 
   const range = `${monthName}!A${startRow}`;
   const appendRes = await googleFetch(
@@ -138,6 +149,24 @@ export async function addTransactionsBatch(token, spreadsheetId, sheetId, monthN
       body: JSON.stringify({ requests }),
     });
   }
+}
+
+/**
+ * 고정비 행의 지출(D열) 금액만 덮어쓴다.
+ * 행 자체(내용·분류·결제수단·배경색)는 건드리지 않으므로 검토 큐(노란색)에도 뜨지 않는다.
+ * 값 '설정'이라 같은 명세가 재처리돼도 결과가 동일하다(멱등).
+ */
+export async function updateFixedRowAmount(token, spreadsheetId, monthName, rowIndex, amount) {
+  const range = `${monthName}!D${rowIndex}`;
+  await googleFetch(
+    token,
+    `${BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [[amount]] }),
+    }
+  );
 }
 
 /**

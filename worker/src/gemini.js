@@ -18,13 +18,17 @@ const RESPONSE_SCHEMA = {
         type: 'object',
         properties: {
           date: { type: 'string', description: '날짜 (MM/DD)' },
+          time: {
+            type: 'string',
+            description: '거래 시각 24시간제 HH:MM. 화면/문서에 시각 표기가 없으면 반드시 빈 문자열("")',
+          },
           desc: { type: 'string', description: '가맹점/사용내용' },
           inc: { type: 'integer', description: '수입 금액 (없으면 0)' },
           exp: { type: 'integer', description: '지출/투자 금액 (없으면 0)' },
           cat: { type: 'string', description: '카테고리' },
           method: { type: 'string', description: '결제수단' },
         },
-        required: ['date', 'desc', 'inc', 'exp', 'cat', 'method'],
+        required: ['date', 'time', 'desc', 'inc', 'exp', 'cat', 'method'],
       },
     },
   },
@@ -98,6 +102,10 @@ export function buildPromptForSource(mimeType, fileName) {
 - 잔액(잔고·남은금액·Balance)은 거래 금액이 아니므로 절대 포함하지 마세요.
 
 [날짜] 반드시 MM/DD. "6.03"·"6월 3일"·"06-03" → "06/03". 연도는 무시.
+[시각(time)] 화면에 거래 시각이 보이면 24시간제 "HH:MM"으로 넣으세요.
+ - "오후 2:23"·"2:23 PM" → "14:23" / "09:05" → "09:05" / "14:23:57" → "14:23"
+ - 같은 날 같은 금액의 거래를 구분하는 유일한 단서이므로, 보이면 절대 생략하지 마세요.
+ - 시각 표기가 화면에 없으면 추측하지 말고 빈 문자열("")로 두세요.
 [내용(desc)] 실제 이체/결제 상대 혹은 사용처 명칭을 그대로.
 
 [파일명 추천 규칙]
@@ -124,6 +132,7 @@ ${METHOD_GUIDE}`;
 
 [거래 내역 추출 규칙]
 1. 날짜: MM/DD 형식으로 추출
+1-1. time(시각): 명세서에 거래 시각이 함께 표기된 경우에만 24시간제 "HH:MM"으로 추출하고, 없으면 빈 문자열("")
 2. desc(내용): 이용처/상점명 추출
 3. exp(지출): 청구된 원금 절대값 정수 추출
 4. 다음 키워드는 보험/와우멤버십/통신비 등의 제외 항목이므로 포함하지 마세요: '와우 멤버십', '보험', '카드대금', 'DLIVE', 'SKT', 'KT', 'LGU+'
