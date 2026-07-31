@@ -131,7 +131,9 @@ function initAddForm(getCurrentMonth, onAdded) {
             method,
           });
         } else {
-          // 일반 거래 모드인 경우 기존 단일 거래 추가 API 호출
+          // 일반 거래 모드인 경우 기존 단일 거래 추가 API 호출.
+          // 사용자가 직접 추가한 항목은 이미 검토를 마친 것이므로
+          // 노란색(검토 필요)으로 칠하지 않는다 → 검토 큐에 뜨지 않음.
           await SheetsAPI.addTransaction(month, {
             date,
             desc,
@@ -139,7 +141,7 @@ function initAddForm(getCurrentMonth, onAdded) {
             exp:  type === 'exp' ? amount : 0,
             cat,
             method,
-          });
+          }, false, { markYellow: false });
         }
 
         showToast(`✅ "${desc}" 항목이 추가되었습니다.`);
