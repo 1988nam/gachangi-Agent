@@ -149,26 +149,24 @@ const Auth = (() => {
     if (tokenClient) {
       // 수동 로그인은 항상 로그인 콜백(initApp)을 타야 한다 — 무음 갱신 실패 잔여 플래그 해제.
       _silentRefresh = false;
-      // 만료되지 않은 캐시 토큰이 없으므로 명시적으로 동의화면/로그인 창 띄움
-      tokenClient.requestAccessToken({ prompt: 'consent' });
+      // prompt는 비워둔다('').
+      // (버그수정) 과거 'consent'는 '이미 동의했더라도 매번 동의 화면을 다시 띄우라'는 강제 옵션이라,
+      // 로그인할 때마다 미확인 앱 경고('확인하지 않은 앱' → 고급 → 이동)를 다시 통과해야 했다.
+      // ''로 두면 이미 승인된 스코프는 동의 화면 없이 토큰만 재발급된다(최초 1회만 승인).
+      // 아직 승인 전이거나 스코프가 늘어난 경우에는 구글이 알아서 동의 화면을 띄운다.
+      tokenClient.requestAccessToken({ prompt: '' });
     } else {
       console.error('[Auth] GIS가 아직 초기화되지 않았습니다.');
     }
   }
 
-  /** 로그아웃 */
+  /** 로그아웃 — 로컬 세션만 정리한다.
+   *  (버그수정) 과거엔 revokeToken으로 토큰을 폐기했는데, 구글의 revoke는 해당 토큰뿐 아니라
+   *  '같은 승인(grant)으로 발급된 모든 토큰'을 무효화한다. 즉 앱 승인 자체가 취소돼,
+   *  다음 로그인 때 동의 화면 + 미확인 앱 경고를 처음부터 다시 통과해야 했다.
+   *  구글 계정에서 앱 연결을 완전히 끊으려면 계정 설정(myaccount.google.com/permissions)에서 해제한다. */
   function logout() {
     if (_refreshTimer) { clearTimeout(_refreshTimer); _refreshTimer = null; }
-    if (accessToken) {
-      try {
-        google.accounts.oauth2.revokeToken(accessToken, () => {
-          console.log('[Auth] Google Access Token 폐기 성공.');
-        });
-      } catch (e) {
-        console.warn('[Auth] 토큰 폐기 과정 예외 발생 (이미 유효기간 만료 등):', e);
-      }
-    }
-    
     accessToken = null;
     localStorage.removeItem('gachangi_access_token');
     localStorage.removeItem('gachangi_token_expiry');
