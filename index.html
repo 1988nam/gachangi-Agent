@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>가챙이 대시보드</title>
+  <title>가챙이 · 가계부 · 올챙이 Agent</title>
   <!-- 탭 파비콘: 돈주머니 이모지(💰)를 인라인 SVG로 (별도 파일 불필요, 전 브라우저 호환) -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%92%B0</text></svg>" />
   <meta name="description" content="가챙이 자동 가계부 관리 대시보드 - 지출 분석, 예산 관리, 검토 큐" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
+
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
   <link rel="stylesheet" href="style.css" />
   <!-- Chart.js를 상단에 로드하여 컴파일 및 초기화 참조 에러 방지 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -42,8 +42,8 @@
       if (loader) loader.style.display = 'none';
     };
   </script>
-</head>
-<body>
+<link rel="stylesheet" href="/shared/shell.css"></head>
+<body data-agent="gachangi" data-suite-base="https://olchangi.pages.dev">
 
 <!-- ════════════════════════════════════
   로그인 화면
@@ -56,15 +56,15 @@
   </div>
   <div class="login-card glass">
     <div class="login-logo">
-      <div class="logo-icon">💰</div>
+      <div class="logo-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h14v4M3 9h18v12H3V9Zm12 4h6v4h-6v-4"/></svg></div>
       <h1 class="login-title">가챙이</h1>
       <p class="login-subtitle">스마트 가계부 대시보드</p>
     </div>
     <div class="login-features">
-      <div class="feature-item">📊 카테고리별 지출 차트</div>
-      <div class="feature-item">🔍 검토 필요 항목 빠른 수정</div>
-      <div class="feature-item">📈 월별 수입/지출 트렌드</div>
-      <div class="feature-item">⚙️ 예산 설정 및 초과 알림</div>
+      <div class="feature-item"> 카테고리별 지출 차트</div>
+      <div class="feature-item"> 검토 필요 항목 빠른 수정</div>
+      <div class="feature-item"> 월별 수입/지출 트렌드</div>
+      <div class="feature-item"> 예산 설정 및 초과 알림</div>
     </div>
     <button id="login-btn" class="btn-login">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -76,7 +76,7 @@
       Google로 로그인
     </button>
     <p class="login-note">Google Sheets 읽기/쓰기 권한이 필요합니다</p>
-    <button id="open-config-login-btn" class="btn-text" style="margin-top: 16px; color: var(--text-muted); cursor: pointer;">⚙️ API 연동 설정</button>
+    <button id="open-config-login-btn" class="btn-text" style="margin-top: 16px; color: var(--text-muted); cursor: pointer;"> API 연동 설정</button>
   </div>
 </div>
 
@@ -88,7 +88,7 @@
   <!-- 사이드바 -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-logo">💰</div>
+      <div class="sidebar-logo"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h14v4M3 9h18v12H3V9Zm12 4h6v4h-6v-4"/></svg></div>
       <div class="sidebar-title-wrap">
         <span class="sidebar-app-name">가챙이</span>
         <span class="sidebar-tagline">가계부 대시보드</span>
@@ -97,51 +97,51 @@
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-item active" data-tab="dashboard" id="nav-dashboard">
-        <span class="nav-icon">📊</span>
+      <button type="button" class="nav-item active" data-tab="dashboard" id="nav-dashboard">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18V5m0 13h16M8 14l4-4 3 2 5-7m-5 0h5v5"/></svg></span>
         <span class="nav-label">종합 대시보드</span>
-      </div>
-      <div class="nav-item" data-tab="monthly-dashboard" id="nav-monthly-dashboard">
-        <span class="nav-icon">📅</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="monthly-dashboard" id="nav-monthly-dashboard">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v16H4V5Zm3-3v6m10-6v6M4 10h16"/></svg></span>
         <span class="nav-label">월별 현황</span>
-      </div>
-      <div class="nav-item" data-tab="transactions" id="nav-transactions">
-        <span class="nav-icon">📋</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="transactions" id="nav-transactions">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5h12M8 12h12M8 19h12M4 5h.01M4 12h.01M4 19h.01"/></svg></span>
         <span class="nav-label">상세 내역</span>
-      </div>
-      <div class="nav-item" data-tab="cat-expenses" id="nav-cat-expenses">
-        <span class="nav-icon">🍰</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="cat-expenses" id="nav-cat-expenses">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5h12M8 12h12M8 19h12M4 5h.01M4 12h.01M4 19h.01"/></svg></span>
         <span class="nav-label">누적 지출 분석</span>
-      </div>
-      <div class="nav-item" data-tab="review" id="nav-review">
-        <span class="nav-icon">🔍</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="review" id="nav-review">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm5 12 6 6"/></svg></span>
         <span class="nav-label">검토 큐</span>
         <span id="review-badge" class="badge" style="display:none">0</span>
-      </div>
-      <div class="nav-item" data-tab="capture" id="nav-capture">
-        <span class="nav-icon">📷</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="capture" id="nav-capture">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v14H3V7Zm9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg></span>
         <span class="nav-label">은행 캡쳐 업로드</span>
-      </div>
-      <div class="nav-item" data-tab="fixed-expenses" id="nav-fixed-expenses">
-        <span class="nav-icon">📌</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="fixed-expenses" id="nav-fixed-expenses">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5h12M8 12h12M8 19h12M4 5h.01M4 12h.01M4 19h.01"/></svg></span>
         <span class="nav-label">고정비 관리</span>
-      </div>
-      <div class="nav-item" data-tab="budget" id="nav-budget">
-        <span class="nav-icon">⚙️</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="budget" id="nav-budget">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 4 4 1v7l-4 1-1 5H9l-1-5-4-1V8l4-1 1-4Zm3 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6"/></svg></span>
         <span class="nav-label">예산 설정</span>
-      </div>
-      <div class="nav-item" data-tab="cards-accounts" id="nav-cards-accounts">
-        <span class="nav-icon">💳</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="cards-accounts" id="nav-cards-accounts">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h14v4M3 9h18v12H3V9Zm12 4h6v4h-6v-4"/></svg></span>
         <span class="nav-label">카드 계좌 리스트</span>
-      </div>
-      <div class="nav-item" data-tab="agent" id="nav-agent">
-        <span class="nav-icon">🤖</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="agent" id="nav-agent">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/></svg></span>
         <span class="nav-label">에이전트 관리</span>
-      </div>
-      <div class="nav-item" data-tab="config" id="nav-config">
-        <span class="nav-icon">⚙️</span>
+      </button>
+      <button type="button" class="nav-item" data-tab="config" id="nav-config">
+        <span class="nav-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l1 4 4 1v7l-4 1-1 5H9l-1-5-4-1V8l4-1 1-4Zm3 6a3 3 0 1 0 0 6 3 3 0 0 0 0-6"/></svg></span>
         <span class="nav-label">API 설정</span>
-      </div>
+      </button>
     </nav>
 
     <div class="sidebar-footer">
@@ -149,7 +149,7 @@
         <div class="user-avatar">👤</div>
         <span id="user-name" class="user-name-text">사용자</span>
       </div>
-      <button id="logout-btn" class="btn-icon" title="로그아웃">⏏</button>
+      <button id="logout-btn" class="btn-icon" title="로그아웃" aria-label="로그아웃"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3H4v18h6m3-14 5 5-5 5m-5-5h13"/></svg></button>
     </div>
   </aside>
 
@@ -159,12 +159,12 @@
     <!-- 상단 바 -->
     <header class="topbar">
       <div class="topbar-left" style="display: flex; align-items: center; gap: 12px;">
-        <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" style="display: none;">☰</button>
+        <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" style="display: none;" aria-label="메뉴 열기"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
         <h2 class="topbar-title" id="page-title">대시보드</h2>
       </div>
       <div class="topbar-right">
         <select id="month-selector" class="month-selector"></select>
-        <button id="refresh-btn" class="btn-icon" title="새로고침">🔄</button>
+        <button id="refresh-btn" class="btn-icon" title="새로고침" aria-label="새로고침"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 8a8 8 0 1 0 0 8M20 3v5h-5"/></svg></button>
       </div>
     </header>
 
@@ -219,7 +219,7 @@
       <!-- YTD 상세 내역 영역 -->
       <div class="glass card full-width-card" style="margin-top: 24px;">
         <div class="card-header">
-          <h3 class="card-title" id="dashboard-cat-details-title">🔍 카테고리별 상세 거래 내역</h3>
+          <h3 class="card-title" id="dashboard-cat-details-title"> 카테고리별 상세 거래 내역</h3>
         </div>
         <div class="table-wrap" style="max-height: 260px; overflow-y: auto;">
           <table class="data-table">
@@ -252,7 +252,7 @@
       <!-- 트렌드 상세 내역 영역 -->
       <div class="glass card full-width-card" id="dashboard-trend-details-card" style="margin-top: 24px; display: none;">
         <div class="card-header">
-          <h3 class="card-title" id="dashboard-trend-details-title">🔍 월별 상세 거래 내역</h3>
+          <h3 class="card-title" id="dashboard-trend-details-title"> 월별 상세 거래 내역</h3>
         </div>
         <div class="table-wrap" style="max-height: 300px; overflow-y: auto;">
           <table class="data-table">
@@ -278,10 +278,10 @@
     <section id="tab-monthly-dashboard" class="tab-panel">
       <!-- 상단 정보 -->
       <div class="glass card page-header-card">
-        <h3 class="card-title" id="monthly-dashboard-title">📅 월별 현황 및 지출 분석</h3>
+        <h3 class="card-title" id="monthly-dashboard-title"> 월별 현황 및 지출 분석</h3>
         <p class="card-desc">선택된 월의 지출 및 예산 관리 현황을 확인합니다.</p>
       </div>
-      
+
       <!-- KPI 카드 -->
       <div class="kpi-grid">
         <div class="kpi-card glass">
@@ -317,7 +317,7 @@
             <canvas id="monthly-pie-chart"></canvas>
           </div>
         </div>
-        
+
         <div class="chart-card glass">
           <div class="card-header">
             <h3 class="card-title">카테고리별 순위 <span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:6px;">(클릭 시 아래 상세 내역 필터링)</span></h3>
@@ -340,11 +340,11 @@
 
         <div class="chart-card glass">
           <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-            <h3 class="card-title" id="monthly-cat-details-title">🔍 카테고리별 상세 거래 내역</h3>
+            <h3 class="card-title" id="monthly-cat-details-title"> 카테고리별 상세 거래 내역</h3>
             <!-- 일괄 작업 컨트롤 바 -->
             <div id="monthly-batch-action-bar" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
               <span id="monthly-batch-count" style="font-size: 13px; color: var(--text-muted);">0건 선택됨</span>
-              <button id="monthly-batch-delete-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); padding: 4px 8px; font-size: 12px; margin: 0;">🗑️ 선택 삭제</button>
+              <button id="monthly-batch-delete-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); padding: 4px 8px; font-size: 12px; margin: 0;"> 선택 삭제</button>
               <select id="monthly-batch-cat-select" class="filter-select" style="margin: 0; padding: 4px 8px; font-size: 12px;">
                 <option value="">분류 일괄 변경</option>
               </select>
@@ -379,10 +379,10 @@
     <section id="tab-cat-expenses" class="tab-panel">
       <!-- 상단 정보 -->
       <div class="glass card page-header-card">
-        <h3 class="card-title" id="cat-expenses-title">📅 카테고리별 지출 분석</h3>
+        <h3 class="card-title" id="cat-expenses-title"> 카테고리별 지출 분석</h3>
         <p class="card-desc">이번 달의 카테고리별 지출 세부 현황을 분석합니다.</p>
       </div>
-      
+
       <!-- KPI 카드 -->
       <div class="kpi-grid">
         <div class="kpi-card glass">
@@ -418,7 +418,7 @@
             <canvas id="cat-expenses-chart"></canvas>
           </div>
         </div>
-        
+
         <div class="chart-card glass">
           <div class="card-header">
             <h3 class="card-title">카테고리별 순위 <span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:6px;">(클릭 시 아래 상세 내역 필터링)</span></h3>
@@ -432,11 +432,11 @@
       <!-- 상세 내역 목록 -->
       <div class="glass card full-width-card">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-          <h3 class="card-title" id="cat-details-title">🔍 카테고리별 상세 거래 내역</h3>
+          <h3 class="card-title" id="cat-details-title"> 카테고리별 상세 거래 내역</h3>
           <!-- 일괄 작업 컨트롤 바 -->
           <div id="cat-batch-action-bar" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
             <span id="cat-batch-count" style="font-size: 13px; color: var(--text-muted);">0건 선택됨</span>
-            <button id="cat-batch-delete-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); padding: 4px 8px; font-size: 12px; margin: 0;">🗑️ 선택 삭제</button>
+            <button id="cat-batch-delete-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); padding: 4px 8px; font-size: 12px; margin: 0;"> 선택 삭제</button>
             <select id="cat-batch-cat-select" class="filter-select" style="margin: 0; padding: 4px 8px; font-size: 12px;">
               <option value="">분류 일괄 변경</option>
             </select>
@@ -471,14 +471,14 @@
       <div class="glass card">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
           <div>
-            <h3 class="card-title">🔍 검토 필요 항목 <span id="review-count" class="count-badge">0건</span></h3>
+            <h3 class="card-title"> 검토 필요 항목 <span id="review-count" class="count-badge">0건</span></h3>
             <p class="card-desc">모든 월의 노란색 배경(검토 필요) 항목을 한 번에 보여줍니다. 분류를 확인하고 완료 처리하세요.</p>
           </div>
           <!-- 일괄 작업 컨트롤 바 -->
           <div id="review-batch-action-bar" style="display: none; align-items: center; gap: 8px; flex-wrap: wrap;">
             <span id="review-batch-count" style="font-size: 13px; color: var(--text-muted);">0건 선택됨</span>
             <button id="review-batch-done-btn" class="btn-primary" style="background: var(--color-success); border-color: var(--color-success); padding: 6px 12px; font-size: 12px; margin: 0;">✓ 선택 완료</button>
-            <button id="review-batch-delete-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); padding: 6px 12px; font-size: 12px; margin: 0;">🗑️ 선택 삭제</button>
+            <button id="review-batch-delete-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); padding: 6px 12px; font-size: 12px; margin: 0;"> 선택 삭제</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -509,7 +509,7 @@
     <!-- ── 은행 캡쳐 업로드 탭 ────────────────────── -->
     <section id="tab-capture" class="tab-panel">
       <div class="glass card page-header-card">
-        <h3 class="card-title">📷 은행 캡쳐 업로드</h3>
+        <h3 class="card-title"> 은행 캡쳐 업로드</h3>
         <p class="card-desc">폰에서 찍은 은행 입출금·이체 스크린샷을 올리면 수집 폴더에 적재한 뒤 자동으로 파싱해 해당 월 시트에 기록하고 검토 큐에 올립니다.</p>
       </div>
 
@@ -520,12 +520,12 @@
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 24px 0 20px;">
-          <button id="capture-upload-btn" class="btn-primary" style="padding: 14px 28px; font-size: 15px;">📷 은행 캡쳐 선택</button>
+          <button id="capture-upload-btn" class="btn-primary" style="padding: 14px 28px; font-size: 15px;"> 은행 캡쳐 선택</button>
           <p style="font-size: 12px; color: var(--text-muted); margin: 0; text-align: center; line-height: 1.7;">
             여러 장을 한 번에 선택할 수 있습니다 (png · jpg · heic 등 이미지).<br>
             업로드 후 최대 2분 안에 처리가 시작되고, 파일이 많으면 5개씩 나눠 이어서 처리합니다.
           </p>
-          <button id="capture-goto-review-btn" class="btn-primary" style="background: var(--color-success); border-color: var(--color-success); padding: 8px 16px; font-size: 12px;">🔄 검토 큐 새로고침하고 이동</button>
+          <button id="capture-goto-review-btn" class="btn-primary" style="background: var(--color-success); border-color: var(--color-success); padding: 8px 16px; font-size: 12px;"> 검토 큐 새로고침하고 이동</button>
           <input type="file" id="capture-upload-input" accept="image/*" multiple style="display:none">
         </div>
 
@@ -538,14 +538,14 @@
     <section id="tab-transactions" class="tab-panel">
       <div class="glass card">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-          <h3 class="card-title">📋 상세 내역</h3>
+          <h3 class="card-title"> 상세 내역</h3>
           <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
             <div class="filter-bar">
               <input type="text" id="tx-search" class="search-input" placeholder="🔍 내용 검색..." />
               <select id="filter-cat" class="filter-select"></select>
               <select id="filter-method" class="filter-select"></select>
             </div>
-            <button id="btn-add-tx" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; height: 36px; display: inline-flex; align-items: center;">➕ 항목 추가</button>
+            <button id="btn-add-tx" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; height: 36px; display: inline-flex; align-items: center;"> 항목 추가</button>
           </div>
         </div>
         <div class="tx-summary-bar">
@@ -573,10 +573,10 @@
       <div class="glass card">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
           <div>
-            <h3 class="card-title">📌 고정비 관리</h3>
+            <h3 class="card-title"> 고정비 관리</h3>
             <p class="card-desc">날짜가 '-'로 입력된 매월 고정적인 수입/지출 항목들을 관리합니다.</p>
           </div>
-          <button id="btn-add-fixed" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; height: 36px; display: inline-flex; align-items: center;">➕ 고정비 추가</button>
+          <button id="btn-add-fixed" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; height: 36px; display: inline-flex; align-items: center;"> 고정비 추가</button>
         </div>
         <div class="tx-summary-bar">
           <span>총 <strong id="fixed-count">0건</strong></span>
@@ -602,7 +602,7 @@
     <section id="tab-budget" class="tab-panel">
       <div class="glass card">
         <div class="card-header">
-          <h3 class="card-title">⚙️ 카테고리별 월 예산</h3>
+          <h3 class="card-title"> 카테고리별 월 예산</h3>
           <p class="card-desc">예산을 설정하면 대시보드에 진행률이 표시됩니다.</p>
         </div>
         <div id="budget-list" class="budget-list"></div>
@@ -614,16 +614,16 @@
           </div>
         </div>
         <div class="budget-actions">
-          <button id="budget-save-btn" class="btn-primary">💾 예산 저장</button>
+          <button id="budget-save-btn" class="btn-primary"> 예산 저장</button>
         </div>
       </div>
       <div class="glass card" style="margin-top: 24px;">
         <div class="card-header">
-          <h3 class="card-title">🧹 기존 데이터 카테고리 일괄 변환</h3>
+          <h3 class="card-title"> 기존 데이터 카테고리 일괄 변환</h3>
           <p class="card-desc">구글 시트의 기존 내역(식비, 잡비, 고정비 등)을 새로운 11대 카테고리(생활비, 기타 등)로 스프레드시트 상에서 직접 일괄 변환하여 정비합니다.</p>
         </div>
         <div class="budget-actions" style="margin-top: 16px;">
-          <button id="migrate-categories-btn" class="btn-primary" style="background: var(--color-warning); border-color: var(--color-warning);">🔄 기존 카테고리 일괄 변환</button>
+          <button id="migrate-categories-btn" class="btn-primary" style="background: var(--color-warning); border-color: var(--color-warning);"> 기존 카테고리 일괄 변환</button>
         </div>
       </div>
     </section>
@@ -631,7 +631,7 @@
     <!-- ── 에이전트 관리 탭 ────────────────────── -->
     <section id="tab-agent" class="tab-panel">
       <div class="glass card page-header-card">
-        <h3 class="card-title">🤖 가챙이 자동화 에이전트</h3>
+        <h3 class="card-title"> 가챙이 자동화 에이전트</h3>
         <p class="card-desc">구글 드라이브 폴더의 영수증/이체 내역 파일을 감시하여 Gemini AI로 자동 파싱하고 기록하는 에이전트를 모니터링합니다.</p>
       </div>
 
@@ -650,9 +650,9 @@
           <div class="kpi-body" style="width: 100%;">
             <div class="kpi-label">수집 및 분석 실행 / 복원</div>
             <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px; width: 100%;">
-              <button id="agent-trigger-btn" class="btn-primary" style="font-size: 12px; padding: 6px 12px; width: 100%;">⚡ 즉시 동기화 실행</button>
-              <button id="agent-rollback-btn" class="btn-primary" style="background: var(--color-warning); border-color: var(--color-warning); font-size: 11px; padding: 4px 8px; color: #000; width: 100%;">↩️ 세션 내역 롤백</button>
-              <button id="agent-clear-yellow-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); font-size: 11px; padding: 4px 8px; width: 100%;">🚨 미검토 노란행 삭제</button>
+              <button id="agent-trigger-btn" class="btn-primary" style="font-size: 12px; padding: 6px 12px; width: 100%;"> 즉시 동기화 실행</button>
+              <button id="agent-rollback-btn" class="btn-primary" style="background: var(--color-warning); border-color: var(--color-warning); font-size: 11px; padding: 4px 8px; color: #000; width: 100%;"> 세션 내역 롤백</button>
+              <button id="agent-clear-yellow-btn" class="btn-primary" style="background: var(--color-danger); border-color: var(--color-danger); font-size: 11px; padding: 4px 8px; width: 100%;"> 미검토 노란행 삭제</button>
             </div>
           </div>
         </div>
@@ -669,11 +669,11 @@
       <!-- 터미널 콘솔 로그 -->
       <div class="glass card full-width-card" style="margin-top: 24px;">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-          <h3 class="card-title">💻 실시간 에이전트 작업 로그</h3>
+          <h3 class="card-title"> 실시간 에이전트 작업 로그</h3>
           <div style="display: flex; gap: 8px;">
-            <button id="refresh-worker-log-btn" class="btn-text" style="font-size: 12px; color: #6366f1;">📜 처리 이력 새로고침</button>
-            <button id="download-agent-log-btn" class="btn-text" style="font-size: 12px; color: var(--color-success);">💾 로그 다운로드</button>
-            <button id="clear-agent-log-btn" class="btn-text" style="font-size: 12px; color: var(--color-danger);">🧹 로그 지우기</button>
+            <button id="refresh-worker-log-btn" class="btn-text" style="font-size: 12px; color: #6366f1;"> 처리 이력 새로고침</button>
+            <button id="download-agent-log-btn" class="btn-text" style="font-size: 12px; color: var(--color-success);"> 로그 다운로드</button>
+            <button id="clear-agent-log-btn" class="btn-text" style="font-size: 12px; color: var(--color-danger);"> 로그 지우기</button>
           </div>
         </div>
         <div id="agent-console" style="background: #020617; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px; font-family: monospace, Courier, sans-serif; font-size: 12px; color: #10b981; max-height: 400px; min-height: 250px; overflow-y: auto; line-height: 1.6; white-space: pre-wrap;">
@@ -685,7 +685,7 @@
     <!-- ── 카드 계좌 리스트 탭 ────────────────────── -->
     <section id="tab-cards-accounts" class="tab-panel">
       <div class="glass card page-header-card">
-        <h3 class="card-title">💳 보유 카드 & 계좌 리스트 관리</h3>
+        <h3 class="card-title"> 보유 카드 & 계좌 리스트 관리</h3>
         <p class="card-desc">스프레드시트에 연동된 본인의 카드 정보 및 보유 계좌(자산 제외) 데이터를 추가, 수정, 삭제합니다.</p>
       </div>
 
@@ -693,8 +693,8 @@
         <!-- 보유 통장/계좌 영역 -->
         <div class="glass card">
           <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <h3 class="card-title">🏦 보유 계좌</h3>
-            <button id="btn-add-account" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; display: inline-flex; align-items: center; gap: 4px;">➕ 계좌 추가</button>
+            <h3 class="card-title"> 보유 계좌</h3>
+            <button id="btn-add-account" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; display: inline-flex; align-items: center; gap: 4px;"> 계좌 추가</button>
           </div>
           <div class="table-wrap" style="margin-top: 16px; max-height: 500px; overflow-y: auto;">
             <table class="data-table">
@@ -715,8 +715,8 @@
         <!-- 보유 카드 영역 -->
         <div class="glass card">
           <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <h3 class="card-title">💳 보유 카드</h3>
-            <button id="btn-add-card" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; display: inline-flex; align-items: center; gap: 4px;">➕ 카드 추가</button>
+            <h3 class="card-title"> 보유 카드</h3>
+            <button id="btn-add-card" class="btn-primary" style="padding: 6px 12px; font-size: 13px; margin: 0; display: inline-flex; align-items: center; gap: 4px;"> 카드 추가</button>
           </div>
           <div class="table-wrap" style="margin-top: 16px; max-height: 500px; overflow-y: auto;">
             <table class="data-table">
@@ -743,14 +743,14 @@
 <div id="add-tx-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content glass">
     <div class="modal-header">
-      <h3 class="modal-title" id="modal-title">➕ 새 거래 항목 추가</h3>
+      <h3 class="modal-title" id="modal-title"> 새 거래 항목 추가</h3>
       <button id="modal-close-btn" class="btn-close">&times;</button>
     </div>
     <div class="modal-body">
       <form id="add-form" class="add-form">
         <div class="type-toggle">
-          <button type="button" class="type-toggle-btn active" data-type="exp">💳 지출</button>
-          <button type="button" class="type-toggle-btn" data-type="inc">💰 수입</button>
+          <button type="button" class="type-toggle-btn active" data-type="exp"> 지출</button>
+          <button type="button" class="type-toggle-btn" data-type="inc"> 수입</button>
         </div>
 
         <div class="form-row">
@@ -790,7 +790,7 @@
 <div id="card-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content glass">
     <div class="modal-header">
-      <h3 class="modal-title" id="card-modal-title">➕ 새 카드 추가</h3>
+      <h3 class="modal-title" id="card-modal-title"> 새 카드 추가</h3>
       <button id="card-modal-close-btn" class="btn-close">&times;</button>
     </div>
     <div class="modal-body">
@@ -828,7 +828,7 @@
 <div id="account-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content glass">
     <div class="modal-header">
-      <h3 class="modal-title" id="account-modal-title">➕ 새 보유 계좌 추가</h3>
+      <h3 class="modal-title" id="account-modal-title"> 새 보유 계좌 추가</h3>
       <button id="account-modal-close-btn" class="btn-close">&times;</button>
     </div>
     <div class="modal-body">
@@ -878,7 +878,7 @@
 <div id="config-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content glass" style="max-width: 500px;">
     <div class="modal-header">
-      <h3 class="modal-title">⚙️ API 연동 설정</h3>
+      <h3 class="modal-title"> API 연동 설정</h3>
       <button id="config-modal-close-btn" class="btn-close">&times;</button>
     </div>
     <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
@@ -899,9 +899,9 @@
           <label class="form-label">Gemini API Key <span class="required">*</span></label>
           <input type="password" id="cfg-gemini-api-key" class="form-input" placeholder="AIzaSy..." required />
         </div>
-        
+
         <div style="border-top: 1px solid rgba(255,255,255,0.08); margin: 16px 0; padding-top: 12px;">
-          <h4 style="margin: 0 0 10px 0; font-size: 13px; color: var(--text-muted);">📁 구글 드라이브 폴더 설정 (영수증 파싱용)</h4>
+          <h4 style="margin: 0 0 10px 0; font-size: 13px; color: var(--text-muted);"> 구글 드라이브 폴더 설정 (영수증 파싱용)</h4>
           <div class="form-group">
             <label class="form-label">영수증 수집 폴더 ID (Source)</label>
             <input type="text" id="cfg-source-folder-id" class="form-input" placeholder="Folder ID" />
@@ -917,7 +917,7 @@
         </div>
 
         <div class="form-group" style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 12px; margin-top: 4px;">
-          <h4 style="margin: 0 0 10px 0; font-size: 13px; color: var(--text-muted);">☁️ 무인 Worker 설정 (자동 처리·이력)</h4>
+          <h4 style="margin: 0 0 10px 0; font-size: 13px; color: var(--text-muted);"> 무인 Worker 설정 (자동 처리·이력)</h4>
           <label class="form-label">Worker URL</label>
           <input type="text" id="cfg-agent-worker-url" class="form-input" placeholder="https://gachangi-agent-worker.xxx.workers.dev" />
           <label class="form-label" style="margin-top: 8px;">Worker 실행 토큰 (RUN_TOKEN)</label>
@@ -929,12 +929,12 @@
       </form>
 
       <div style="border-top: 1px solid rgba(255,255,255,0.08); margin-top: 20px; padding-top: 16px;">
-        <h4 style="margin: 0 0 8px 0; font-size: 13px;">📲 설정 내보내기 및 가져오기</h4>
+        <h4 style="margin: 0 0 8px 0; font-size: 13px;"> 설정 내보내기 및 가져오기</h4>
         <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">다른 기기에서 복사해 붙여넣거나 백업할 때 사용하세요.</p>
         <textarea id="cfg-import-export-area" class="form-input" style="height: 70px; font-family: monospace; font-size: 10px; resize: none;" placeholder="가져올 설정 코드를 여기에 붙여넣으세요..."></textarea>
         <div style="display: flex; gap: 8px; margin-top: 8px;">
-          <button type="button" id="cfg-export-btn" class="btn-primary" style="flex: 1; font-size: 11px; padding: 6px; background: var(--color-primary);">📤 설정 복사하기</button>
-          <button type="button" id="cfg-import-btn" class="btn-primary" style="flex: 1; font-size: 11px; padding: 6px; background: var(--color-success); border-color: var(--color-success);">📥 설정 적용하기</button>
+          <button type="button" id="cfg-export-btn" class="btn-primary" style="flex: 1; font-size: 11px; padding: 6px; background: var(--color-primary);"> 설정 복사하기</button>
+          <button type="button" id="cfg-import-btn" class="btn-primary" style="flex: 1; font-size: 11px; padding: 6px; background: var(--color-success); border-color: var(--color-success);"> 설정 적용하기</button>
         </div>
       </div>
     </div>
@@ -1014,5 +1014,5 @@
 <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 
-</body>
+<script src="/shared/shell.js"></script><script src="/shared/ui.js"></script></body>
 </html>

@@ -283,17 +283,17 @@ function renderReviewTab() {
       tr.innerHTML = `
         <td><input type="checkbox" disabled></td>
         <td><span class="date-badge" style="background: rgba(99,102,241,0.15); color: #a5b4fc;">${escapeHtml(month)}</span></td>
-        <td><input type="text" class="edit-date" value="${escapeHtml(tx.date)}" style="width: 55px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
-        <td><input type="text" class="edit-desc" value="${escapeHtml(tx.desc)}" style="width: 90%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
-        <td><input type="text" class="edit-inc" value="${tx.inc ? tx.inc.toLocaleString('ko-KR') : ''}" style="width: 75px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
-        <td><input type="text" class="edit-exp" value="${tx.exp ? tx.exp.toLocaleString('ko-KR') : ''}" style="width: 75px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
+        <td><input type="text" class="edit-date" value="${escapeHtml(tx.date)}" style="width: 55px; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
+        <td><input type="text" class="edit-desc" value="${escapeHtml(tx.desc)}" style="width: 90%; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
+        <td><input type="text" class="edit-inc" value="${tx.inc ? tx.inc.toLocaleString('ko-KR') : ''}" style="width: 75px; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
+        <td><input type="text" class="edit-exp" value="${tx.exp ? tx.exp.toLocaleString('ko-KR') : ''}" style="width: 75px; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
         <td>
-          <select class="edit-cat" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
+          <select class="edit-cat" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Noto Sans KR', sans-serif;">
             ${categories.map(c => `<option value="${escapeHtml(c)}" ${c === tx.cat ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
           </select>
         </td>
         <td>
-          <select class="edit-method" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
+          <select class="edit-method" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Noto Sans KR', sans-serif;">
             ${methods.map(m => `<option value="${escapeHtml(m)}" ${m === tx.method ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
           </select>
         </td>

@@ -6,7 +6,7 @@ function renderTransactionsTab(transactions, monthName) {
   // 상단 바 타이틀 업데이트
   const pageTitle = document.getElementById('page-title');
   if (pageTitle) {
-    pageTitle.textContent = `📋 상세 내역 (${monthName})`;
+    pageTitle.textContent = `상세 내역 (${monthName})`;
   }
 
   const tbody     = document.getElementById('tx-table-body');
@@ -81,17 +81,17 @@ function renderTransactionsTab(transactions, monthName) {
       const tr = e.target.closest('tr');
       // 행을 입력 폼으로 변환
       tr.innerHTML = `
-        <td><input type="text" class="edit-date" value="${escapeHtml(tx.date)}" style="width: 50px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
-        <td><input type="text" class="edit-desc" value="${escapeHtml(tx.desc)}" style="width: 90%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
-        <td><input type="text" class="edit-inc" value="${tx.inc ? tx.inc.toLocaleString('ko-KR') : ''}" style="width: 70px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
-        <td><input type="text" class="edit-exp" value="${tx.exp ? tx.exp.toLocaleString('ko-KR') : ''}" style="width: 70px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
+        <td><input type="text" class="edit-date" value="${escapeHtml(tx.date)}" style="width: 50px; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
+        <td><input type="text" class="edit-desc" value="${escapeHtml(tx.desc)}" style="width: 90%; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
+        <td><input type="text" class="edit-inc" value="${tx.inc ? tx.inc.toLocaleString('ko-KR') : ''}" style="width: 70px; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
+        <td><input type="text" class="edit-exp" value="${tx.exp ? tx.exp.toLocaleString('ko-KR') : ''}" style="width: 70px; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
         <td>
-          <select class="edit-cat" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
+          <select class="edit-cat" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Noto Sans KR', sans-serif;">
             ${SheetsAPI.getCategories().map(c => `<option value="${escapeHtml(c)}" ${c === tx.cat ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
           </select>
         </td>
         <td>
-          <select class="edit-method" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
+          <select class="edit-method" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Noto Sans KR', sans-serif;">
             ${SheetsAPI.getMethods().map(m => `<option value="${escapeHtml(m)}" ${m === tx.method ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
           </select>
         </td>

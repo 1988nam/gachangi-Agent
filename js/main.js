@@ -146,28 +146,28 @@ function switchTab(tabId) {
   } else if (tabId === 'monthly-dashboard') {
     renderMonthlyDashboardTab();
   } else if (tabId === 'cat-expenses') {
-    document.getElementById('page-title').textContent = '🍰 누적 지출 분석';
+    document.getElementById('page-title').textContent = '누적 지출 분석';
     renderCategoryExpensesTab();
   } else if (tabId === 'review') {
-    document.getElementById('page-title').textContent = '🔍 검토 큐';
+    document.getElementById('page-title').textContent = '검토 큐';
     renderReviewTab();          // 캐시 기준 즉시 렌더(빠른 표시)
     refreshReviewData();        // 모든 월 최신화 후 재렌더(정확성)
   } else if (tabId === 'transactions') {
     renderTransactionsTab(_transactions, _currentMonth);
   } else if (tabId === 'capture') {
-    document.getElementById('page-title').textContent = '📷 은행 캡쳐 업로드';
+    document.getElementById('page-title').textContent = '은행 캡쳐 업로드';
     renderCaptureTab();
   } else if (tabId === 'agent') {
-    document.getElementById('page-title').textContent = '🤖 에이전트 관리';
+    document.getElementById('page-title').textContent = '에이전트 관리';
     renderAgentTab();
   } else if (tabId === 'fixed-expenses') {
-    document.getElementById('page-title').textContent = `📌 고정비 관리 (${_currentMonth})`;
+    document.getElementById('page-title').textContent = `고정비 관리 (${_currentMonth})`;
     renderFixedExpensesTab(_transactions, _currentMonth);
   } else if (tabId === 'budget') {
-    document.getElementById('page-title').textContent = '⚙️ 예산 설정';
+    document.getElementById('page-title').textContent = '예산 설정';
     renderBudgetTab();
   } else if (tabId === 'cards-accounts') {
-    document.getElementById('page-title').textContent = '💳 카드/계좌 관리';
+    document.getElementById('page-title').textContent = '카드/계좌 관리';
     CardsAccounts.renderCardsAccountsTab();
   }
 }

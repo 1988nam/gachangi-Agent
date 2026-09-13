@@ -97,7 +97,7 @@ function _renderCatExpensesChart(catTotals) {
       datasets: [{
         data,
         backgroundColor: colors,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(37,52,45,0.08)',
         borderWidth: 2,
         hoverOffset: 8,
       }],
@@ -110,8 +110,8 @@ function _renderCatExpensesChart(catTotals) {
         legend: {
           position: 'right',
           labels: {
-            color: '#e2e8f0',
-            font: { family: "'Outfit', 'Noto Sans KR', sans-serif", size: 11 },
+            color: '#25342d',
+            font: { family: "'Noto Sans KR', sans-serif", size: 11 },
             padding: 10,
             usePointStyle: true,
             boxWidth: 8,
@@ -121,9 +121,9 @@ function _renderCatExpensesChart(catTotals) {
           callbacks: {
             label: ctx => ` ${ctx.label}: ${formatWon(ctx.raw)}`,
           },
-          backgroundColor: 'rgba(15,23,42,0.9)',
-          titleColor: '#e2e8f0',
-          bodyColor: '#94a3b8',
+          backgroundColor: '#ffffff',
+          titleColor: '#25342d',
+          bodyColor: '#647267',
           borderColor: 'rgba(255,255,255,0.1)',
           borderWidth: 1,
         },
@@ -162,7 +162,7 @@ function _renderCatExpensesList(catTotals, catCounts, totalExp, allExpenses) {
     item.style.borderRadius = '8px';
     item.style.transition = 'background 0.2s';
     
-    item.addEventListener('mouseenter', () => item.style.backgroundColor = 'rgba(255,255,255,0.03)');
+    item.addEventListener('mouseenter', () => item.style.backgroundColor = 'rgba(37,52,45,0.08)');
     item.addEventListener('mouseleave', () => item.style.backgroundColor = 'transparent');
     
     // 클릭 시 해당 카테고리 상세 내역 필터링
@@ -251,16 +251,16 @@ function _renderCatDetailsTable(transactions, categoryName) {
       // 행을 입력 폼으로 변환 (체크박스 열 유지)
       tr.innerHTML = `
         <td><input type="checkbox" class="cat-row-check" data-row="${tx.rowIndex}" data-month="${escapeHtml(tx.month)}" disabled style="opacity: 0.5;"></td>
-        <td><input type="text" class="edit-cat-date" value="${escapeHtml(tx.date)}" style="width: 50px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
-        <td><input type="text" class="edit-cat-desc" value="${escapeHtml(tx.desc)}" style="width: 90%; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
-        <td><input type="text" class="edit-cat-exp" value="${tx.exp ? tx.exp.toLocaleString('ko-KR') : ''}" style="width: 70px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
+        <td><input type="text" class="edit-cat-date" value="${escapeHtml(tx.date)}" style="width: 50px; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: center;"></td>
+        <td><input type="text" class="edit-cat-desc" value="${escapeHtml(tx.desc)}" style="width: 90%; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px;"></td>
+        <td><input type="text" class="edit-cat-exp" value="${tx.exp ? tx.exp.toLocaleString('ko-KR') : ''}" style="width: 70px; background: rgba(37,52,45,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; text-align: right;"></td>
         <td>
-          <select class="edit-cat-cat" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
+          <select class="edit-cat-cat" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Noto Sans KR', sans-serif;">
             ${SheetsAPI.getCategories().map(c => `<option value="${escapeHtml(c)}" ${c === tx.cat ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
           </select>
         </td>
         <td>
-          <select class="edit-cat-method" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
+          <select class="edit-cat-method" style="background: rgba(15,23,42,0.9); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 4px; font-family: 'Noto Sans KR', sans-serif;">
             ${SheetsAPI.getMethods().map(m => `<option value="${escapeHtml(m)}" ${m === tx.method ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
           </select>
         </td>

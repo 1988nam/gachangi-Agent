@@ -6,18 +6,9 @@ let _pieChart = null;
 let _trendChart = null;
 
 const CHART_COLORS = [
-  '#6366f1', // Indigo
-  '#22c55e', // Green
-  '#fb923c', // Orange
-  '#ec4899', // Pink
-  '#0ea5e9', // Sky Blue
-  '#eab308', // Amber/Yellow
-  '#ef4444', // Red
-  '#14b8a6', // Teal
-  '#a855f7', // Purple
-  '#84cc16', // Lime
-  '#f43f5e', // Rose
-  '#06b6d4', // Cyan
+  '#52735f', '#a37444', '#557d9c', '#9b616a',
+  '#737b46', '#796793', '#45807a', '#a06543',
+  '#606e8d', '#846949', '#7f5966', '#536e70',
 ];
 
 /** 대시보드 탭 렌더링 (YTD 누적) */
@@ -26,7 +17,7 @@ async function renderDashboardTab() {
   const sysMonthNum = now.getMonth() + 1; // e.g., 6 (June)
   const sysMonth = `${sysMonthNum}월`;
 
-  document.getElementById('page-title').textContent = `📊 종합 대시보드 (1월 ~ ${sysMonth})`;
+  document.getElementById('page-title').textContent = `종합 대시보드 (1월 ~ ${sysMonth})`;
 
   showLoading(true);
   try {
@@ -111,13 +102,19 @@ function _renderDashboardCatList(catTotals, catCounts, totalExp, allExpenses) {
     const color = CHART_COLORS[idx % CHART_COLORS.length];
 
     const item = document.createElement('div');
+    item.setAttribute('role', 'button');
+    item.tabIndex = 0;
+    item.setAttribute('aria-label', `${cat} 지출 ${count}건 보기`);
+    item.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.click(); }
+    });
     item.className = 'budget-bar-item';
     item.style.cursor = 'pointer';
     item.style.padding = '8px';
     item.style.borderRadius = '8px';
     item.style.transition = 'background 0.2s';
 
-    item.addEventListener('mouseenter', () => item.style.backgroundColor = 'rgba(255,255,255,0.03)');
+    item.addEventListener('mouseenter', () => item.style.backgroundColor = 'rgba(37,52,45,0.08)');
     item.addEventListener('mouseleave', () => item.style.backgroundColor = 'transparent');
 
     item.addEventListener('click', () => {
@@ -181,8 +178,9 @@ function _renderDashboardCatDetailsTable(transactions, categoryName) {
 
 /** 카테고리별 누적 파이 차트 */
 function _renderPieChart(catTotals) {
-  const labels  = Object.keys(catTotals);
-  const data    = Object.values(catTotals);
+  // Use the same order as the ranking so every category retains its color.
+  const labels  = Object.keys(catTotals).sort((a, b) => catTotals[b] - catTotals[a]);
+  const data    = labels.map(label => catTotals[label]);
   const colors  = labels.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
 
   const ctx = document.getElementById('pie-chart').getContext('2d');
@@ -195,7 +193,7 @@ function _renderPieChart(catTotals) {
       datasets: [{
         data,
         backgroundColor: colors,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(37,52,45,0.08)',
         borderWidth: 2,
         hoverOffset: 8,
       }],
@@ -208,8 +206,8 @@ function _renderPieChart(catTotals) {
         legend: {
           position: 'right',
           labels: {
-            color: '#e2e8f0',
-            font: { family: "'Outfit', 'Noto Sans KR', sans-serif", size: 11 },
+            color: '#25342d',
+            font: { family: "'Noto Sans KR', sans-serif", size: 11 },
             padding: 10,
             usePointStyle: true,
             boxWidth: 8,
@@ -219,9 +217,9 @@ function _renderPieChart(catTotals) {
           callbacks: {
             label: ctx => ` ${ctx.label}: ${formatWon(ctx.raw)}`,
           },
-          backgroundColor: 'rgba(15,23,42,0.9)',
-          titleColor: '#e2e8f0',
-          bodyColor: '#94a3b8',
+          backgroundColor: '#ffffff',
+          titleColor: '#25342d',
+          bodyColor: '#647267',
           borderColor: 'rgba(255,255,255,0.1)',
           borderWidth: 1,
         },
@@ -260,7 +258,7 @@ function renderTrendChart(allMonthData) {
           label: '수입',
           data: incData,
           backgroundColor: 'rgba(52, 211, 153, 0.7)',
-          borderColor: '#34d399',
+          borderColor: '#276447',
           borderWidth: 1,
           borderRadius: 6,
         },
@@ -268,7 +266,7 @@ function renderTrendChart(allMonthData) {
           label: '지출',
           data: expData,
           backgroundColor: 'rgba(248, 113, 113, 0.7)',
-          borderColor: '#f87171',
+          borderColor: '#b03939',
           borderWidth: 1,
           borderRadius: 6,
         },
@@ -295,24 +293,24 @@ function renderTrendChart(allMonthData) {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          labels: { color: '#e2e8f0', font: { family: "'Outfit', 'Noto Sans KR', sans-serif", size: 12 } },
+          labels: { color: '#25342d', font: { family: "'Noto Sans KR', sans-serif", size: 12 } },
         },
         tooltip: {
           callbacks: { label: ctx => ` ${ctx.dataset.label}: ${formatWon(ctx.raw)}` },
-          backgroundColor: 'rgba(15,23,42,0.9)',
-          titleColor: '#e2e8f0',
-          bodyColor: '#94a3b8',
+          backgroundColor: '#ffffff',
+          titleColor: '#25342d',
+          bodyColor: '#647267',
         },
       },
       scales: {
-        x: { ticks: { color: '#94a3b8', font: { family: "'Outfit', 'Noto Sans KR', sans-serif" } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { ticks: { color: '#647267', font: { family: "'Noto Sans KR', sans-serif" } }, grid: { color: 'rgba(37,52,45,0.08)' } },
         y: {
           ticks: {
-            color: '#94a3b8',
-            font: { family: "'Outfit', 'Noto Sans KR', sans-serif" },
+            color: '#647267',
+            font: { family: "'Noto Sans KR', sans-serif" },
             callback: v => formatWon(v),
           },
-          grid: { color: 'rgba(255,255,255,0.05)' },
+          grid: { color: 'rgba(37,52,45,0.08)' },
         },
       },
     },
