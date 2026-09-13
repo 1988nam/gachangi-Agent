@@ -9,13 +9,15 @@ let _transactions    = [];
 let _allMonthData    = {};
 let _isLoadingData   = false;
 const _monthRequests = new Map();
+window.addEventListener('olchangi-cache-clear', () => { _allMonthData = {}; _monthRequests.clear(); });
 function loadMonthCached(month, force = false) {
+  if (force) window.OlchangiCache?.clear();
   if (_monthRequests.has(month)) return _monthRequests.get(month);
-  if (!force && Object.hasOwn(_allMonthData, month)) return Promise.resolve(_allMonthData[month]);
+  if (!window.OlchangiCache && !force && Object.hasOwn(_allMonthData, month)) return Promise.resolve(_allMonthData[month]);
   const request = Promise.resolve().then(() => SheetsAPI.loadMonthData(month)).then(rows => {
     _allMonthData[month] = rows;
     return rows;
-  }).finally(() => _monthRequests.delete(month));
+  }).finally(() => { if (_monthRequests.get(month) === request) _monthRequests.delete(month); });
   _monthRequests.set(month, request);
   return request;
 }
@@ -79,8 +81,12 @@ function showToast(message, type = 'success') {
   toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
+let _loadingTimer;
 function showLoading(show) {
-  document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+  clearTimeout(_loadingTimer);
+  const overlay = document.getElementById('loading-overlay');
+  if (!show) overlay.style.display = 'none';
+  else _loadingTimer = setTimeout(() => { overlay.style.display = 'flex'; }, 150);
 }
 
 // ─── 탭 네비게이션 ─────────────────────────────────────
@@ -206,7 +212,7 @@ function initMonthSelector() {
 
   selector.addEventListener('change', async () => {
     _currentMonth = selector.value;
-    await loadCurrentMonth();
+    await loadCurrentMonth({ force: false });
   });
 }
 

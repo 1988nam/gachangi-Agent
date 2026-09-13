@@ -294,6 +294,15 @@ const SheetsAPI = (() => {
 
   /** 스프레드시트 메타데이터 로드 (시트 목록 및 ID 조회) */
   async function loadSpreadsheetMeta() {
+    if (!window.OlchangiCache) return loadSpreadsheetMetaFresh();
+    const snapshot = await OlchangiCache.read(['gachangi', cfg], 'metadata', [], async () => {
+      await loadSpreadsheetMetaFresh();
+      return { meta: _sheetMeta, categories: _categories, methods: _methods };
+    });
+    _sheetMeta = snapshot.meta; _categories = snapshot.categories; _methods = snapshot.methods;
+    return _sheetMeta;
+  }
+  async function loadSpreadsheetMetaFresh() {
     console.log('[Sheets] 구글 API 직접 연동 - 메타데이터 로드 시작');
     try {
       const res = await _gapiRetry(() => gapi.client.sheets.spreadsheets.get({
@@ -893,6 +902,8 @@ const SheetsAPI = (() => {
   async function _ensureBudgetSheet() {
     if (Object.keys(_sheetMeta).length === 0) await loadSpreadsheetMeta();
     if (_sheetMeta[BUDGET_SHEET] !== undefined) return;
+    // Creating a tab changes metadata too; do not restore the pre-creation snapshot later.
+    window.OlchangiCache?.clear();
     const addRes = await _gapiRetry(() => gapi.client.sheets.spreadsheets.batchUpdate({
       spreadsheetId: cfg.SPREADSHEET_ID,
       resource: { requests: [{ addSheet: { properties: { title: BUDGET_SHEET } } }] },
@@ -944,7 +955,7 @@ const SheetsAPI = (() => {
     return { success: true };
   }
 
-  return {
+  const api = {
     loadBudgets,
     saveBudgets,
     loadSpreadsheetMeta,
@@ -978,4 +989,9 @@ const SheetsAPI = (() => {
     updateAccount,
     deleteAccount,
   };
+  return window.OlchangiCache ? OlchangiCache.wrap(api,
+    () => ['gachangi', cfg],
+    ['loadMonthData', 'loadBudgets', 'loadCards', 'loadAccounts'],
+    Object.keys(api).filter(name => /^(save|update|delete|mark|add|migrate)/.test(name))
+  ) : api;
 })();

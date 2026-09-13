@@ -26,10 +26,13 @@ async function renderDashboardTab() {
     // 1월부터 현재 월(sysMonth)까지 모든 데이터를 취합합니다
     const allTransactions = [];
     const failedMonths = [];
-    for (let i = 1; i <= sysMonthNum; i++) {
+    let nextMonth = 1;
+    async function loadNextMonths() {
+      while (nextMonth <= sysMonthNum) {
+      const i = nextMonth++;
       const monthName = `${i}월`;
       let monthTxs = [];
-      if (_allMonthData[monthName]) {
+      if (!window.OlchangiCache && _allMonthData[monthName]) {
         monthTxs = _allMonthData[monthName];
       } else {
         try {
@@ -42,7 +45,11 @@ async function renderDashboardTab() {
         }
       }
       allTransactions.push(...monthTxs);
+      }
     }
+    // Three readers shorten cold entry without flooding the Sheets API.
+    await Promise.all(Array.from({ length: Math.min(3, sysMonthNum) }, loadNextMonths));
+    failedMonths.sort((a, b) => parseInt(a) - parseInt(b));
     if (version !== _dashboardRenderVersion || !document.getElementById('tab-dashboard').classList.contains('active')) return;
     const status = document.getElementById('dashboard-data-status');
     if (status) {

@@ -10,7 +10,7 @@ async function renderMonthlyDashboardTab() {
 
   showLoading(true);
   try {
-    const transactions = await loadMonthCached(monthName, true);
+    const transactions = await loadMonthCached(monthName);
     if (_currentMonth === monthName) _transactions = transactions;
     _allMonthData[monthName] = transactions; // 캐시 갱신
 
