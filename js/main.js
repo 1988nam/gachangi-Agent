@@ -8,6 +8,17 @@ let _currentMonth    = null;
 let _transactions    = [];
 let _allMonthData    = {};
 let _isLoadingData   = false;
+const _monthRequests = new Map();
+function loadMonthCached(month, force = false) {
+  if (_monthRequests.has(month)) return _monthRequests.get(month);
+  if (!force && Object.hasOwn(_allMonthData, month)) return Promise.resolve(_allMonthData[month]);
+  const request = Promise.resolve().then(() => SheetsAPI.loadMonthData(month)).then(rows => {
+    _allMonthData[month] = rows;
+    return rows;
+  }).finally(() => _monthRequests.delete(month));
+  _monthRequests.set(month, request);
+  return request;
+}
 
 // ─── 유틸리티 ─────────────────────────────────────────
 function formatWon(n) {
@@ -142,9 +153,9 @@ function switchTab(tabId) {
 
   // 탭별 렌더링
   if (tabId === 'dashboard') {
-    renderDashboardTab();
+    return renderDashboardTab();
   } else if (tabId === 'monthly-dashboard') {
-    renderMonthlyDashboardTab();
+    return renderMonthlyDashboardTab();
   } else if (tabId === 'cat-expenses') {
     document.getElementById('page-title').textContent = '누적 지출 분석';
     renderCategoryExpensesTab();
@@ -215,13 +226,13 @@ function updateReviewBadge() {
 }
 
 // ─── 데이터 로딩 ───────────────────────────────────────
-async function loadCurrentMonth() {
+async function loadCurrentMonth({ render = true, force = true } = {}) {
   if (_isLoadingData || !_currentMonth) return;
   _isLoadingData = true;
   showLoading(true);
 
   try {
-    _transactions = await SheetsAPI.loadMonthData(_currentMonth);
+    _transactions = await loadMonthCached(_currentMonth, force);
     _allMonthData[_currentMonth] = _transactions; // 전역 월별 데이터 캐시에 저장하여 중복 로드 방지
 
     // 검토 배지 업데이트(모든 월 누적 기준)
@@ -229,8 +240,7 @@ async function loadCurrentMonth() {
 
     // 현재 탭 리렌더링
     const activeTab = document.querySelector('.tab-panel.active')?.id?.replace('tab-', '');
-    if (activeTab) switchTab(activeTab);
-    else switchTab('dashboard');
+    if (render) await switchTab(activeTab || 'dashboard');
   } catch (err) {
     console.error('[데이터 로딩 실패]', err);
     showToast('❌ 데이터 로딩 실패: ' + err.message, 'error');
@@ -246,9 +256,7 @@ async function loadAllMonths() {
 
   for (const m of monthsInSheet) {
     try {
-      if (!_allMonthData[m] || _allMonthData[m].length === 0) {
-        _allMonthData[m] = await SheetsAPI.loadMonthData(m);
-      }
+      await loadMonthCached(m);
     } catch (e) {
       // 실패 월을 []로 캐시하면 연간 대시보드·추이 차트가 그 달을 조용히 누락한 채 확정된다.
       // 캐시에 남기지 않아야 다음 loadAllMonths/탭 진입 때 재시도된다.
@@ -258,7 +266,7 @@ async function loadAllMonths() {
   // 모든 월 로딩 후 검토 배지를 전체 누적 기준으로 갱신
   updateReviewBadge();
   // 트렌드 차트 업데이트
-  renderTrendChart(_allMonthData);
+  if (document.getElementById('tab-dashboard').classList.contains('active')) await renderDashboardTab();
 }
 
 // ─── 인증 후 앱 초기화 ─────────────────────────────────
@@ -287,7 +295,9 @@ async function initApp(userInfo) {
     initMonthlyDashboardEvents();
     initCatExpensesEvents();
 
-    await loadCurrentMonth();
+    // The landing dashboard must not depend on a successful selected-month request.
+    await switchTab('dashboard');
+    await loadCurrentMonth({ render: false, force: false });
 
     // 트렌드 차트는 백그라운드에서 로드 (느릴 수 있음)
     loadAllMonths().catch(console.warn);
@@ -331,7 +341,9 @@ window.addEventListener('DOMContentLoaded', () => {
   // 워커가 방금 넣은 신규 항목을 사용자가 즉시 확인할 수 있는 경로를 남겨두기 위함.
   document.getElementById('refresh-btn').addEventListener('click', () => {
     if (typeof invalidateReviewRefresh === 'function') invalidateReviewRefresh();
-    loadCurrentMonth();
+    _allMonthData = {};
+    if (document.getElementById('tab-dashboard').classList.contains('active')) switchTab('dashboard');
+    else loadCurrentMonth();
   });
 
   initFilterEvents();

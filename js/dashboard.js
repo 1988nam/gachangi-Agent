@@ -4,6 +4,7 @@
 
 let _pieChart = null;
 let _trendChart = null;
+let _dashboardRenderVersion = 0;
 
 const CHART_COLORS = [
   '#52735f', '#a37444', '#557d9c', '#9b616a',
@@ -13,6 +14,7 @@ const CHART_COLORS = [
 
 /** 대시보드 탭 렌더링 (YTD 누적) */
 async function renderDashboardTab() {
+  const version = ++_dashboardRenderVersion;
   const now = new Date();
   const sysMonthNum = now.getMonth() + 1; // e.g., 6 (June)
   const sysMonth = `${sysMonthNum}월`;
@@ -23,6 +25,7 @@ async function renderDashboardTab() {
   try {
     // 1월부터 현재 월(sysMonth)까지 모든 데이터를 취합합니다
     const allTransactions = [];
+    const failedMonths = [];
     for (let i = 1; i <= sysMonthNum; i++) {
       const monthName = `${i}월`;
       let monthTxs = [];
@@ -30,14 +33,21 @@ async function renderDashboardTab() {
         monthTxs = _allMonthData[monthName];
       } else {
         try {
-          monthTxs = await SheetsAPI.loadMonthData(monthName);
+          monthTxs = await loadMonthCached(monthName);
           _allMonthData[monthName] = monthTxs;
         } catch (e) {
           console.warn(`[가챙이] ${monthName} 데이터 로딩 누락/실패:`, e);
+          failedMonths.push(monthName);
           monthTxs = [];
         }
       }
       allTransactions.push(...monthTxs);
+    }
+    if (version !== _dashboardRenderVersion || !document.getElementById('tab-dashboard').classList.contains('active')) return;
+    const status = document.getElementById('dashboard-data-status');
+    if (status) {
+      status.hidden = failedMonths.length === 0;
+      status.textContent = failedMonths.length ? `${failedMonths.join(', ')} 조회에 실패했습니다. 현재 합계는 조회된 월 기준입니다. 새로고침하면 다시 조회합니다.` : '';
     }
 
     const totalInc = allTransactions.reduce((s, t) => s + t.inc, 0);

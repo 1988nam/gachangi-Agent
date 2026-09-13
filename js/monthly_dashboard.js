@@ -6,11 +6,12 @@ let _monthlyPieChart = null;
 
 async function renderMonthlyDashboardTab() {
   const monthName = _currentMonth;
-  document.getElementById('page-title').textContent = `monthName} 현황 및 지출 분석`;
+  document.getElementById('page-title').textContent = `${monthName} 현황 및 지출 분석`;
 
   showLoading(true);
   try {
-    const transactions = await SheetsAPI.loadMonthData(monthName);
+    const transactions = await loadMonthCached(monthName, true);
+    if (_currentMonth === monthName) _transactions = transactions;
     _allMonthData[monthName] = transactions; // 캐시 갱신
 
     const totalInc = transactions.reduce((s, t) => s + t.inc, 0);
